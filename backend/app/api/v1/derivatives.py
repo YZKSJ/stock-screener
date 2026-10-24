@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from app.domain.derivatives.analytics import DailyFuturesIndicators, calculate_daily_indicators
+from app.domain.derivatives.analytics import calculate_daily_indicators
 from app.domain.derivatives.contracts import FuturesContract, FuturesMarketObservation
 from app.domain.derivatives.history import FuturesDailyBar
 from app.domain.derivatives.quality import validate_market_observation
@@ -49,13 +49,19 @@ def _indicator_response(bars: tuple[FuturesDailyBar, ...]) -> FuturesDailyIndica
 def _rank_scan_items(
     items: list[FuturesDailyScanItemResponse],
 ) -> list[FuturesDailyScanItemResponse]:
-    rankable = [item for item in items if item.analysis is not None and item.analysis.return_20_bar_pct is not None]
-    unranked = [item for item in items if item not in rankable]
+    rankable = []
+    unranked = []
+    for item in items:
+        if item.analysis is not None and item.analysis.return_20_bar_pct is not None:
+            rankable.append(item)
+        else:
+            unranked.append(item)
     rankable.sort(key=lambda item: item.analysis.return_20_bar_pct, reverse=True)
-    return [
+    ranked = [
         item.model_copy(update={"rank": index})
         for index, item in enumerate(rankable, start=1)
-    ] + unranked
+    ]
+    return ranked + unranked
 
 
 @router.post(

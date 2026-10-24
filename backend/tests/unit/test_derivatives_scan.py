@@ -1,6 +1,5 @@
 """Tests for ranking logic used by the bounded daily scan."""
 from datetime import date
-from app.domain.derivatives.analytics import DailyFuturesIndicators
 from app.schemas.derivatives import FuturesDailyIndicatorsResponse, FuturesDailyScanItemResponse
 from app.api.v1.derivatives import _rank_scan_items
 
