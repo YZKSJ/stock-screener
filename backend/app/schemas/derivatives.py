@@ -1,24 +1,19 @@
 """Strict API contracts for the read-only derivatives research slice."""
 from __future__ import annotations
-
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
-
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from app.domain.derivatives.contracts import SUPPORTED_EXCHANGES
-
 
 class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
-
 
 class FuturesContractInput(_StrictModel):
     symbol: str = Field(min_length=1, max_length=32)
     exchange: str
     product: str = Field(min_length=1, max_length=16)
-    multiplier: float
-    tick_size: float
+    multiplier: float = Field(gt=0, allow_inf_nan=False)
+    tick_size: float = Field(gt=0, allow_inf_nan=False)
     currency: str = "CNY"
 
     @field_validator("symbol", "exchange", "product", "currency")
@@ -33,28 +28,20 @@ class FuturesContractInput(_StrictModel):
             raise ValueError(f"exchange must be one of {sorted(SUPPORTED_EXCHANGES)}")
         return value
 
-    @field_validator("multiplier", "tick_size")
-    @classmethod
-    def positive_market_metadata(cls, value: float) -> float:
-        if value <= 0:
-            raise ValueError("value must be greater than zero")
-        return value
-
-
 class FuturesObservationInput(_StrictModel):
     symbol: str = Field(min_length=1, max_length=32)
     exchange: str
     as_of: datetime
     fetched_at: datetime
-    last_price: float | None = None
-    volume: float | None = None
-    open_interest: float | None = None
-    open_price: float | None = None
-    high_price: float | None = None
-    low_price: float | None = None
-    prev_close: float | None = None
-    bid_price_1: float | None = None
-    ask_price_1: float | None = None
+    last_price: float | None = Field(default=None, allow_inf_nan=False)
+    volume: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    open_interest: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    open_price: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    high_price: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    low_price: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    prev_close: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    bid_price_1: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    ask_price_1: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     source: str = "unspecified"
 
     @field_validator("symbol", "exchange")
@@ -69,12 +56,10 @@ class FuturesObservationInput(_StrictModel):
             raise ValueError("timestamp must include a timezone")
         return value
 
-
 class SnapshotValidationRequest(_StrictModel):
     contract: FuturesContractInput
     observation: FuturesObservationInput
     max_age_seconds: int = Field(default=180, ge=1, le=86400)
-
 
 class SnapshotValidationResponse(_StrictModel):
     status: Literal["valid", "warning", "invalid"]
@@ -88,3 +73,40 @@ class SnapshotValidationResponse(_StrictModel):
         "Validation only: no market data was fetched or persisted.",
         "Quality status does not establish that the provider is authoritative.",
     ])
+
+class FuturesDailyHistoryRequest(_StrictModel):
+    contract: FuturesContractInput
+    start_date: date
+    end_date: date
+
+    @model_validator(mode="after")
+    def validate_date_range(self):
+        if self.start_date > self.end_date:
+            raise ValueError("start_date must be on or before end_date")
+        return self
+
+class FuturesDailyBarResponse(_StrictModel):
+    trading_date: date
+    open_price: float = Field(gt=0)
+    high_price: float = Field(gt=0)
+    low_price: float = Field(gt=0)
+    close_price: float = Field(gt=0)
+    volume: int | None = Field(default=None, ge=0)
+    open_interest: int | None = Field(default=None, ge=0)
+    settlement_price: float | None = Field(default=None, gt=0)
+
+class FuturesDailyHistoryResponse(_StrictModel):
+    symbol: str
+    exchange: str
+    provider: str
+    fetched_at: datetime
+    series_kind: Literal["single_contract", "continuous_proxy"]
+    requested_start_date: date
+    requested_end_date: date
+    first_date: date | None = None
+    last_date: date | None = None
+    row_count: int = Field(ge=0)
+    rows_skipped: int = Field(ge=0)
+    duplicate_dates_skipped: int = Field(ge=0)
+    bars: list[FuturesDailyBarResponse]
+    notes: list[str] = Field(default_factory=list)
