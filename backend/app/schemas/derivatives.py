@@ -14,11 +14,14 @@ class FuturesContractInput(_StrictModel):
     product: str = Field(min_length=1, max_length=16)
     multiplier: float = Field(gt=0, allow_inf_nan=False)
     tick_size: float = Field(gt=0, allow_inf_nan=False)
-    currency: str = "CNY"
+    currency: str = Field(default="CNY", min_length=3, max_length=3)
     @field_validator("symbol", "exchange", "product", "currency")
     @classmethod
     def normalize_identifiers(cls, value: str) -> str:
-        return value.strip().upper()
+        normalized = value.strip().upper()
+        if not normalized:
+            raise ValueError("identifier cannot be blank")
+        return normalized
     @field_validator("exchange")
     @classmethod
     def supported_exchange(cls, value: str) -> str:
@@ -80,6 +83,19 @@ class FuturesDailyHistoryRequest(_StrictModel):
             raise ValueError("start_date must be on or before end_date")
         return self
 
+class FuturesDailyScanRequest(_StrictModel):
+    contracts: list[FuturesContractInput] = Field(min_length=1, max_length=8)
+    start_date: date
+    end_date: date
+    @model_validator(mode="after")
+    def validate_request(self):
+        if self.start_date > self.end_date:
+            raise ValueError("start_date must be on or before end_date")
+        identities = [f"{item.symbol}.{item.exchange}" for item in self.contracts]
+        if len(identities) != len(set(identities)):
+            raise ValueError("contracts must not contain duplicate symbol/exchange pairs")
+        return self
+
 class FuturesDailyBarResponse(_StrictModel):
     trading_date: date
     open_price: float = Field(gt=0)
@@ -128,3 +144,30 @@ class FuturesDailyHistoryResponse(_StrictModel):
     bars: list[FuturesDailyBarResponse]
     analysis: FuturesDailyIndicatorsResponse | None = None
     notes: list[str] = Field(default_factory=list)
+
+class FuturesDailyScanItemResponse(_StrictModel):
+    symbol: str
+    exchange: str
+    provider: str
+    status: Literal["ok", "insufficient_history", "provider_error"]
+    rank: int | None = Field(default=None, ge=1)
+    series_kind: Literal["single_contract", "continuous_proxy"] | None = None
+    first_date: date | None = None
+    last_date: date | None = None
+    row_count: int = Field(default=0, ge=0)
+    rows_skipped: int = Field(default=0, ge=0)
+    analysis: FuturesDailyIndicatorsResponse | None = None
+    reason_code: str | None = None
+
+class FuturesDailyScanResponse(_StrictModel):
+    requested_start_date: date
+    requested_end_date: date
+    requested_count: int = Field(ge=1, le=8)
+    scanned_count: int = Field(ge=0)
+    failed_count: int = Field(ge=0)
+    items: list[FuturesDailyScanItemResponse]
+    notes: list[str] = Field(default_factory=lambda: [
+        "Only the submitted contracts were scanned; this is not a full-market universe scan.",
+        "Rank is by 20-bar return descending; contracts without that history are unranked.",
+        "AKShare/Sina is a best-effort historical source, not an exchange-certified live feed.",
+    ])

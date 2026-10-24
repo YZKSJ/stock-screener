@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from app.domain.derivatives.analytics import calculate_daily_indicators
+from app.domain.derivatives.analytics import DailyFuturesIndicators, calculate_daily_indicators
 from app.domain.derivatives.contracts import FuturesContract, FuturesMarketObservation
+from app.domain.derivatives.history import FuturesDailyBar
 from app.domain.derivatives.quality import validate_market_observation
 from app.infra.providers.akshare_futures_history import (
     AkShareSinaDailyHistoryProvider,
@@ -15,11 +16,46 @@ from app.schemas.derivatives import (
     FuturesDailyHistoryRequest,
     FuturesDailyHistoryResponse,
     FuturesDailyIndicatorsResponse,
+    FuturesDailyScanItemResponse,
+    FuturesDailyScanRequest,
+    FuturesDailyScanResponse,
     SnapshotValidationRequest,
     SnapshotValidationResponse,
 )
 
 router = APIRouter()
+
+
+def _indicator_response(bars: tuple[FuturesDailyBar, ...]) -> FuturesDailyIndicatorsResponse | None:
+    metrics = calculate_daily_indicators(bars)
+    if metrics is None:
+        return None
+    return FuturesDailyIndicatorsResponse(
+        as_of_date=metrics.as_of_date, bar_count=metrics.bar_count,
+        latest_close=metrics.latest_close,
+        return_1_bar_pct=metrics.return_1_bar_pct,
+        return_5_bar_pct=metrics.return_5_bar_pct,
+        return_20_bar_pct=metrics.return_20_bar_pct,
+        sma_5=metrics.sma_5, sma_20=metrics.sma_20,
+        above_sma_20=metrics.above_sma_20,
+        realized_volatility_20_annualized_pct=metrics.realized_volatility_20_annualized_pct,
+        volume_ratio_5_to_previous_20=metrics.volume_ratio_5_to_previous_20,
+        open_interest_change_5_bar_pct=metrics.open_interest_change_5_bar_pct,
+        intraday_range_pct=metrics.intraday_range_pct,
+        trend_state=metrics.trend_state,
+    )
+
+
+def _rank_scan_items(
+    items: list[FuturesDailyScanItemResponse],
+) -> list[FuturesDailyScanItemResponse]:
+    rankable = [item for item in items if item.analysis is not None and item.analysis.return_20_bar_pct is not None]
+    unranked = [item for item in items if item not in rankable]
+    rankable.sort(key=lambda item: item.analysis.return_20_bar_pct, reverse=True)
+    return [
+        item.model_copy(update={"rank": index})
+        for index, item in enumerate(rankable, start=1)
+    ] + unranked
 
 
 @router.post(
@@ -64,24 +100,6 @@ def daily_history(request: FuturesDailyHistoryRequest) -> FuturesDailyHistoryRes
             },
         ) from exc
 
-    metrics = calculate_daily_indicators(result.bars)
-    analysis = None
-    if metrics is not None:
-        analysis = FuturesDailyIndicatorsResponse(
-            as_of_date=metrics.as_of_date, bar_count=metrics.bar_count,
-            latest_close=metrics.latest_close,
-            return_1_bar_pct=metrics.return_1_bar_pct,
-            return_5_bar_pct=metrics.return_5_bar_pct,
-            return_20_bar_pct=metrics.return_20_bar_pct,
-            sma_5=metrics.sma_5, sma_20=metrics.sma_20,
-            above_sma_20=metrics.above_sma_20,
-            realized_volatility_20_annualized_pct=metrics.realized_volatility_20_annualized_pct,
-            volume_ratio_5_to_previous_20=metrics.volume_ratio_5_to_previous_20,
-            open_interest_change_5_bar_pct=metrics.open_interest_change_5_bar_pct,
-            intraday_range_pct=metrics.intraday_range_pct,
-            trend_state=metrics.trend_state,
-        )
-
     notes = [
         "AKShare/Sina is a best-effort third-party source; verify coverage and freshness before use.",
         "Results are filtered to requested dates; missing trading sessions are not inferred.",
@@ -95,8 +113,6 @@ def daily_history(request: FuturesDailyHistoryRequest) -> FuturesDailyHistoryRes
         notes.append("Malformed source rows were skipped; inspect quality counters.")
     if result.duplicate_dates_skipped:
         notes.append("Duplicate/conflicting dates were excluded rather than arbitrarily selected.")
-    if analysis is None:
-        notes.append("No usable bars were returned, so no indicators were calculated.")
 
     return FuturesDailyHistoryResponse(
         symbol=result.symbol, exchange=result.exchange, provider=result.provider,
@@ -113,5 +129,54 @@ def daily_history(request: FuturesDailyHistoryRequest) -> FuturesDailyHistoryRes
                 open_interest=bar.open_interest, settlement_price=bar.settlement_price,
             ) for bar in result.bars
         ],
-        analysis=analysis, notes=notes,
+        analysis=_indicator_response(result.bars),
+        notes=notes,
+    )
+
+
+@router.post(
+    "/scan/daily",
+    response_model=FuturesDailyScanResponse,
+    summary="Scan a bounded list of user-selected futures contracts",
+)
+def scan_daily(request: FuturesDailyScanRequest) -> FuturesDailyScanResponse:
+    """Fetch each submitted symbol serially to avoid uncontrolled provider fan-out."""
+    provider = AkShareSinaDailyHistoryProvider()
+    items: list[FuturesDailyScanItemResponse] = []
+    for contract_input in request.contracts:
+        contract = FuturesContract(**contract_input.model_dump())
+        try:
+            result = provider.daily_history(
+                contract, start_date=request.start_date, end_date=request.end_date
+            )
+        except FuturesHistoryProviderError as exc:
+            items.append(FuturesDailyScanItemResponse(
+                symbol=contract.symbol, exchange=contract.exchange,
+                provider=provider.provider_name, status="provider_error",
+                reason_code=str(exc),
+            ))
+            continue
+
+        analysis = _indicator_response(result.bars)
+        status = "ok" if analysis is not None and analysis.return_20_bar_pct is not None else "insufficient_history"
+        items.append(FuturesDailyScanItemResponse(
+            symbol=result.symbol, exchange=result.exchange, provider=result.provider,
+            status=status, series_kind=result.series_kind,
+            first_date=result.first_date, last_date=result.last_date,
+            row_count=len(result.bars), rows_skipped=result.rows_skipped,
+            analysis=analysis,
+            reason_code=(
+                "insufficient_history_for_20_bar_return"
+                if status == "insufficient_history" else None
+            ),
+        ))
+
+    ranked = _rank_scan_items(items)
+    return FuturesDailyScanResponse(
+        requested_start_date=request.start_date,
+        requested_end_date=request.end_date,
+        requested_count=len(request.contracts),
+        scanned_count=sum(item.status != "provider_error" for item in ranked),
+        failed_count=sum(item.status == "provider_error" for item in ranked),
+        items=ranked,
     )

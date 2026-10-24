@@ -1,4 +1,4 @@
-"""Smoke test for the read-only derivatives endpoints."""
+"""Smoke tests for read-only derivatives route registration."""
 from app.main import app
 
 def test_derivatives_routes_are_registered():
@@ -9,3 +9,4 @@ def test_derivatives_routes_are_registered():
     }
     assert "/api/v1/derivatives/validate-snapshot" in paths
     assert "/api/v1/derivatives/history/daily" in paths
+    assert "/api/v1/derivatives/scan/daily" in paths
