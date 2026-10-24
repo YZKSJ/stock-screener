@@ -56,7 +56,9 @@ def test_directory_normalizes_futures_and_excludes_options_continuous_and_financ
 def test_directory_cache_reuses_snapshot_until_ttl_expires():
     source = FakeAkShare(make_frame())
     now = [NOW]
-    provider = AkShareOpenCtpFuturesDirectory(akshare_module=source, clock=lambda: now[0], ttl_seconds=600)
+    provider = AkShareOpenCtpFuturesDirectory(
+        akshare_module=source, clock=lambda: now[0], ttl_seconds=600
+    )
     first = provider.directory()
     now[0] += timedelta(seconds=300)
     assert provider.directory() is first
@@ -68,7 +70,9 @@ def test_directory_cache_reuses_snapshot_until_ttl_expires():
 
 def test_directory_can_force_refresh():
     source = FakeAkShare(make_frame())
-    provider = AkShareOpenCtpFuturesDirectory(akshare_module=source, clock=lambda: NOW, ttl_seconds=600)
+    provider = AkShareOpenCtpFuturesDirectory(
+        akshare_module=source, clock=lambda: NOW, ttl_seconds=600
+    )
     provider.directory()
     provider.directory(force_refresh=True)
     assert source.calls == 2
@@ -86,3 +90,11 @@ def test_directory_reports_upstream_request_failure_without_leaking_exception_te
             raise RuntimeError("may include data from remote page")
     with pytest.raises(FuturesDirectoryProviderError, match="upstream_request_failed"):
         AkShareOpenCtpFuturesDirectory(akshare_module=Broken(), clock=lambda: NOW).directory()
+
+
+def test_conflicting_duplicate_contract_specs_are_excluded():
+    frame = make_frame().iloc[[0, 0]].copy()
+    frame.iloc[1, frame.columns.get_loc("合约乘数")] = 99
+    source = FakeAkShare(frame)
+    with pytest.raises(FuturesDirectoryProviderError, match="upstream_no_valid_futures_contracts"):
+        AkShareOpenCtpFuturesDirectory(akshare_module=source, clock=lambda: NOW).directory()

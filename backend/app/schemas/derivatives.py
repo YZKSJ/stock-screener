@@ -198,4 +198,5 @@ class FuturesDirectoryResponse(_StrictModel):
         "Directory is a best-effort OpenCTP reference list exposed via AKShare, not an exchange-certified master.",
         "Confirm contract identity, multiplier and tick size with the exchange or broker before relying on them.",
         "Only commodity futures symbols are included; options and continuous symbols are excluded.",
+        "The reference list can contain expired or stale contracts; verify current listing status.",
     ])

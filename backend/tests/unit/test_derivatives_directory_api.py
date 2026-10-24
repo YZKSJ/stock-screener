@@ -34,6 +34,7 @@ def test_directory_search_filters_by_product_and_reports_provenance(monkeypatch)
     assert result.items[0].symbol == "MA701"
     assert result.items[0].multiplier == 10
     assert result.rows_skipped == 2
+    assert any("expired or stale" in note for note in result.notes)
 
 
 def test_directory_search_filters_exchange_and_limit(monkeypatch):

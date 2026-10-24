@@ -21,7 +21,7 @@ The response includes provider identity, fetch time, requested dates, first/last
 
 The directory reads `akshare.futures_fees_info()`, which AKShare documents as an OpenCTP fee/reference table. It exposes normalized symbol, exchange, product, product name, contract name, multiplier and minimum tick, with a short in-process cache. The adapter filters to commodity-futures-looking symbols and excludes options, continuous symbols and financial futures, and fails closed if upstream columns change. It reports both local fetch time and the upstream update timestamp when available.
 
-This is a discovery and form-prefill aid, **not** an official exchange contract master. The UI/API explicitly warn users to verify contract metadata with the exchange or broker. Source rows that are malformed or conflict are excluded, not silently trusted.
+This is a discovery and form-prefill aid, **not** an official exchange contract master. The list can include expired or stale contracts; verify current listing status and contract metadata with the exchange or broker. Source rows that are malformed or conflict are excluded, not silently trusted.
 
 ## Bounded contract-list scan
 

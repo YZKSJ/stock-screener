@@ -88,7 +88,9 @@ class AkShareOpenCtpFuturesDirectory:
 
     provider_name = "akshare:futures_fees_info/openctp"
 
-    def __init__(self, *, akshare_module: Any | None = None, clock=None, ttl_seconds: int = 600) -> None:
+    def __init__(
+        self, *, akshare_module: Any | None = None, clock=None, ttl_seconds: int = 600
+    ) -> None:
         if ttl_seconds < 0:
             raise ValueError("ttl_seconds must not be negative")
         self._akshare = akshare_module
