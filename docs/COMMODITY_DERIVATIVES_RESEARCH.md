@@ -9,19 +9,19 @@ This branch adds a provider-neutral research seam for domestic commodity futures
 
 The API router is protected by the existing server-session dependency.
 
-## Daily history adapter
+## Daily history adapter and indicators
 
-The daily history endpoint calls `akshare.futures_zh_daily_sina(symbol=...)`, then filters the returned series to the requested inclusive date range. See the [AKShare futures documentation](https://github.com/akfamily/akshare/blob/main/docs/data/futures/futures.md) and [upstream adapter source](https://github.com/akfamily/akshare/blob/main/akshare/futures/futures_zh_sina.py).
+The history endpoint calls `akshare.futures_zh_daily_sina(symbol=...)`, then filters the returned daily series to the requested inclusive date range. See the [AKShare futures documentation](https://github.com/akfamily/akshare/blob/main/docs/data/futures/futures.md) and [upstream adapter source](https://github.com/akfamily/akshare/blob/main/akshare/futures/futures_zh_sina.py).
 
-The response includes provider identity, fetch time, requested dates, first/last bar dates, series kind, returned bars and quality counters. Invalid OHLC rows and conflicting duplicate dates are excluded and counted. Missing trading sessions are not inferred because this slice does not yet include the Chinese exchange trading calendar.
+The response includes provider identity, fetch time, requested dates, first/last bar dates, series kind, returned bars and quality counters. Invalid OHLC rows and conflicting duplicate dates are excluded and counted. It also computes descriptive measures from the same bars: 1/5/20-bar returns, 5/20-bar moving averages, 20-return annualized realized volatility, recent-five vs previous-twenty volume ratio, five-bar open-interest change, and latest intraday range. Annualization assumes 252 periods per year.
 
-Use deliverable contract symbols for contract-specific research. A Sina symbol ending in `0` is commonly a continuous/rolled series; these are labeled `continuous_proxy`. Continuous series can contain roll discontinuities and should not be used for return/backtest analysis before roll-adjustment semantics are verified.
+Use deliverable contract symbols for contract-specific research. A Sina symbol ending in `0` is commonly a continuous/rolled series; these are labeled `continuous_proxy`. Continuous series can contain roll discontinuities and should not be used for return/backtest analysis before roll adjustment semantics are verified.
 
 AKShare/Sina is a best-effort third-party source, not an exchange-certified feed. Interfaces can change, be throttled, omit data or become unavailable. Errors are surfaced instead of silently substituting data.
 
 ## Request example
 
-These are synthetic test inputs, not current market data.
+These values are synthetic, not current market data.
 
 ```json
 {
@@ -31,7 +31,7 @@ These are synthetic test inputs, not current market data.
 }
 ```
 
-Submit to `POST /api/v1/derivatives/history/daily`.
+Submit to `POST /api/v1/derivatives/history/daily`. Returns and realized volatility are percentages; volume ratio is a multiplier. Missing history remains unavailable rather than replaced with zero. The trend state is descriptive, not a trading instruction.
 
 ## Not included
 
@@ -45,15 +45,15 @@ Submit to `POST /api/v1/derivatives/history/daily`.
 From `backend/` run:
 
 ```bash
-pytest tests/unit/test_derivatives_quality.py tests/unit/test_derivatives_api_registration.py tests/unit/test_akshare_futures_history.py
+pytest tests/unit/test_derivatives_quality.py tests/unit/test_derivatives_api_registration.py tests/unit/test_akshare_futures_history.py tests/unit/test_derivatives_analytics.py
 ```
 
-The new adapter tests use a fake AKShare module, so they do not call the network.
+The new history and analytics tests use synthetic bars/fake provider calls, not live network data.
 
 ## Next steps
 
 1. Add exchange trading-day/night-session semantics.
 2. Add contract directory and market-universe APIs.
 3. Persist normalized history with source/schema metadata.
-4. Build a scan over validated history, then wire charts and MCP tools.
+4. Build a multi-contract scan over validated history, then wire charts and MCP tools.
 5. Implement licensed CTP/live-data separately from this public history adapter.

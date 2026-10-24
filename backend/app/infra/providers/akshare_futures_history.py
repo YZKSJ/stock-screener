@@ -6,7 +6,6 @@ from typing import Any
 
 from app.domain.derivatives.contracts import FuturesContract
 from app.domain.derivatives.history import FuturesDailyBar, FuturesDailyHistory, SeriesKind, valid_ohlc
-from app.domain.derivatives.ports import FuturesHistoryProvider
 
 _REQUIRED = {"date", "open", "high", "low", "close", "volume", "hold", "settle"}
 
@@ -35,6 +34,7 @@ def _count(value: Any) -> int | None:
     return int(result) if result is not None and result >= 0 and result.is_integer() else None
 
 class AkShareSinaDailyHistoryProvider:
+    """Fetch per-symbol daily bars via akshare.futures_zh_daily_sina."""
     provider_name = "akshare:futures_zh_daily_sina"
 
     def __init__(self, *, akshare_module: Any | None = None, clock=None) -> None:
@@ -79,16 +79,18 @@ class AkShareSinaDailyHistoryProvider:
                 continue
             if not start_date <= day <= end_date:
                 continue
-            values = tuple(_number(record.get(k)) for k in ("open", "high", "low", "close"))
-            if any(v is None for v in values) or not valid_ohlc(*values):
+            o, h, low, close = (_number(record.get(k)) for k in ("open", "high", "low", "close"))
+            if o is None or h is None or low is None or close is None or not valid_ohlc(o, h, low, close):
                 skipped += 1
                 continue
-            o, h, low, c = values
             settle = _number(record.get("settle"))
             if settle is not None and settle <= 0:
                 settle = None
-            bar = FuturesDailyBar(day, float(o), float(h), float(low), float(c),
-                                 _count(record.get("volume")), _count(record.get("hold")), settle)
+            bar = FuturesDailyBar(
+                trading_date=day, open_price=o, high_price=h, low_price=low, close_price=close,
+                volume=_count(record.get("volume")), open_interest=_count(record.get("hold")),
+                settlement_price=settle,
+            )
             if day in conflicted:
                 duplicates += 1
             elif day not in by_date:
@@ -105,7 +107,8 @@ class AkShareSinaDailyHistoryProvider:
         if fetched.tzinfo is None or fetched.utcoffset() is None:
             raise ValueError("provider clock must be timezone-aware")
         return FuturesDailyHistory(
-            contract.symbol, contract.exchange, self.provider_name,
-            fetched.astimezone(timezone.utc), kind,
-            tuple(by_date[d] for d in sorted(by_date)), skipped, duplicates
+            symbol=contract.symbol, exchange=contract.exchange, provider=self.provider_name,
+            fetched_at=fetched.astimezone(timezone.utc), series_kind=kind,
+            bars=tuple(by_date[d] for d in sorted(by_date)),
+            rows_skipped=skipped, duplicate_dates_skipped=duplicates,
         )

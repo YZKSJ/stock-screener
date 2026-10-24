@@ -1,4 +1,4 @@
-"""Smoke test for the first read-only derivatives endpoints."""
+"""Smoke test for the read-only derivatives endpoints."""
 from app.main import app
 
 def test_derivatives_routes_are_registered():

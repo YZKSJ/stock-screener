@@ -15,12 +15,10 @@ class FuturesContractInput(_StrictModel):
     multiplier: float = Field(gt=0, allow_inf_nan=False)
     tick_size: float = Field(gt=0, allow_inf_nan=False)
     currency: str = "CNY"
-
     @field_validator("symbol", "exchange", "product", "currency")
     @classmethod
     def normalize_identifiers(cls, value: str) -> str:
         return value.strip().upper()
-
     @field_validator("exchange")
     @classmethod
     def supported_exchange(cls, value: str) -> str:
@@ -43,12 +41,10 @@ class FuturesObservationInput(_StrictModel):
     bid_price_1: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     ask_price_1: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     source: str = "unspecified"
-
     @field_validator("symbol", "exchange")
     @classmethod
     def normalize_identifiers(cls, value: str) -> str:
         return value.strip().upper()
-
     @field_validator("as_of", "fetched_at")
     @classmethod
     def require_timezone(cls, value: datetime) -> datetime:
@@ -78,7 +74,6 @@ class FuturesDailyHistoryRequest(_StrictModel):
     contract: FuturesContractInput
     start_date: date
     end_date: date
-
     @model_validator(mode="after")
     def validate_date_range(self):
         if self.start_date > self.end_date:
@@ -95,6 +90,28 @@ class FuturesDailyBarResponse(_StrictModel):
     open_interest: int | None = Field(default=None, ge=0)
     settlement_price: float | None = Field(default=None, gt=0)
 
+class FuturesDailyIndicatorsResponse(_StrictModel):
+    as_of_date: date
+    bar_count: int = Field(ge=1)
+    latest_close: float = Field(gt=0)
+    return_1_bar_pct: float | None = None
+    return_5_bar_pct: float | None = None
+    return_20_bar_pct: float | None = None
+    sma_5: float | None = Field(default=None, gt=0)
+    sma_20: float | None = Field(default=None, gt=0)
+    above_sma_20: bool | None = None
+    realized_volatility_20_annualized_pct: float | None = Field(default=None, ge=0)
+    volume_ratio_5_to_previous_20: float | None = Field(default=None, ge=0)
+    open_interest_change_5_bar_pct: float | None = None
+    intraday_range_pct: float = Field(ge=0)
+    trend_state: Literal["uptrend", "downtrend", "mixed", "insufficient_history"]
+    formula_notes: list[str] = Field(default_factory=lambda: [
+        "Returns are percentages over bars in this requested series, not calendar days.",
+        "20-return realized volatility is annualized using 252 periods per year.",
+        "Volume ratio compares the latest five bars with the previous twenty bars.",
+        "Trend state is descriptive only and is not a trade recommendation.",
+    ])
+
 class FuturesDailyHistoryResponse(_StrictModel):
     symbol: str
     exchange: str
@@ -109,4 +126,5 @@ class FuturesDailyHistoryResponse(_StrictModel):
     rows_skipped: int = Field(ge=0)
     duplicate_dates_skipped: int = Field(ge=0)
     bars: list[FuturesDailyBarResponse]
+    analysis: FuturesDailyIndicatorsResponse | None = None
     notes: list[str] = Field(default_factory=list)
