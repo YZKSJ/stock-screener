@@ -11,7 +11,7 @@ import { scanCommodityFutures } from '../api/derivatives';
 const EXCHANGES = [
   { value: 'SHFE', label: 'SHFE · Shanghai' }, { value: 'DCE', label: 'DCE · Dalian' },
   { value: 'CZCE', label: 'CZCE · Zhengzhou' }, { value: 'INE', label: 'INE · Energy' },
-  { value: 'GFEX', label: 'GFEX · Guangzhou' }, { value: 'CFFEX', label: 'CFFEX · Financial' },
+  { value: 'GFEX', label: 'GFEX · Guangzhou' },
 ];
 const dateText = (d) => {
   const p = (n) => String(n).padStart(2, '0');
