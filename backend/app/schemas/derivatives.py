@@ -173,3 +173,29 @@ class FuturesDailyScanResponse(_StrictModel):
         "Rank is by 20-bar return descending; contracts without that history are unranked.",
         "AKShare/Sina is a best-effort historical source, not an exchange-certified live feed.",
     ])
+
+
+class FuturesDirectoryItemResponse(_StrictModel):
+    symbol: str
+    exchange: str
+    product: str
+    product_name: str
+    contract_name: str
+    multiplier: float = Field(gt=0, allow_inf_nan=False)
+    tick_size: float = Field(gt=0, allow_inf_nan=False)
+
+
+class FuturesDirectoryResponse(_StrictModel):
+    provider: str
+    fetched_at: datetime
+    source_updated_at: datetime | None = None
+    result_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    limit: int = Field(ge=1, le=100)
+    rows_skipped: int = Field(ge=0)
+    items: list[FuturesDirectoryItemResponse]
+    notes: list[str] = Field(default_factory=lambda: [
+        "Directory is a best-effort OpenCTP reference list exposed via AKShare, not an exchange-certified master.",
+        "Confirm contract identity, multiplier and tick size with the exchange or broker before relying on them.",
+        "Only commodity futures symbols are included; options and continuous symbols are excluded.",
+    ])

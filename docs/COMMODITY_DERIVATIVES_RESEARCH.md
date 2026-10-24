@@ -4,6 +4,7 @@ This branch adds a provider-neutral research seam for domestic commodity futures
 
 ## API endpoints
 
+- `GET /api/v1/derivatives/directory?q=MA&exchange=CZCE&limit=50`
 - `POST /api/v1/derivatives/validate-snapshot`
 - `POST /api/v1/derivatives/history/daily`
 - `POST /api/v1/derivatives/scan/daily`
@@ -15,6 +16,12 @@ All endpoints are behind the existing server-session dependency.
 The history endpoint calls `akshare.futures_zh_daily_sina(symbol=...)`, then filters the returned daily series to the requested inclusive date range. See the [AKShare futures documentation](https://github.com/akfamily/akshare/blob/main/docs/data/futures/futures.md) and [upstream adapter source](https://github.com/akfamily/akshare/blob/main/akshare/futures/futures_zh_sina.py).
 
 The response includes provider identity, fetch time, requested dates, first/last bar dates, series kind, returned bars and quality counters. Invalid OHLC rows and conflicting duplicate dates are excluded and counted. It also computes 1/5/20-bar returns, 5/20-bar moving averages, 20-return annualized realized volatility, recent-five vs previous-twenty volume ratio, five-bar open-interest change, and latest intraday range. Annualization assumes 252 periods per year.
+
+## Contract directory
+
+The directory reads `akshare.futures_fees_info()`, which AKShare documents as an OpenCTP fee/reference table. It exposes normalized symbol, exchange, product, product name, contract name, multiplier and minimum tick, with a short in-process cache. The adapter filters to commodity-futures-looking symbols and excludes options, continuous symbols and financial futures, and fails closed if upstream columns change. It reports both local fetch time and the upstream update timestamp when available.
+
+This is a discovery and form-prefill aid, **not** an official exchange contract master. The UI/API explicitly warn users to verify contract metadata with the exchange or broker. Source rows that are malformed or conflict are excluded, not silently trusted.
 
 ## Bounded contract-list scan
 

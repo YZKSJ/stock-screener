@@ -1,12 +1,16 @@
 """Read-only API endpoints for domestic futures and derivatives research."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.domain.derivatives.analytics import calculate_daily_indicators
 from app.domain.derivatives.contracts import FuturesContract, FuturesMarketObservation
 from app.domain.derivatives.history import FuturesDailyBar
 from app.domain.derivatives.quality import validate_market_observation
+from app.infra.providers.akshare_futures_directory import (
+    AkShareOpenCtpFuturesDirectory,
+    FuturesDirectoryProviderError,
+)
 from app.infra.providers.akshare_futures_history import (
     AkShareSinaDailyHistoryProvider,
     FuturesHistoryProviderError,
@@ -19,11 +23,14 @@ from app.schemas.derivatives import (
     FuturesDailyScanItemResponse,
     FuturesDailyScanRequest,
     FuturesDailyScanResponse,
+    FuturesDirectoryItemResponse,
+    FuturesDirectoryResponse,
     SnapshotValidationRequest,
     SnapshotValidationResponse,
 )
 
 router = APIRouter()
+_directory_provider = AkShareOpenCtpFuturesDirectory()
 
 
 def _indicator_response(bars: tuple[FuturesDailyBar, ...]) -> FuturesDailyIndicatorsResponse | None:
@@ -80,6 +87,64 @@ def _rank_scan_items(
         for index, item in enumerate(rankable, start=1)
     ]
     return ranked + unranked
+
+
+@router.get(
+    "/directory",
+    response_model=FuturesDirectoryResponse,
+    summary="Search a best-effort commodity futures contract directory",
+)
+def futures_contract_directory(
+    q: str | None = Query(default=None, max_length=64),
+    exchange: str | None = Query(default=None, max_length=8),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> FuturesDirectoryResponse:
+    """Return filtered contract metadata with explicit third-party provenance."""
+    normalized_exchange = exchange.strip().upper() if exchange else None
+    if normalized_exchange and normalized_exchange not in {"SHFE", "DCE", "CZCE", "INE", "GFEX"}:
+        raise HTTPException(status_code=422, detail="unsupported commodity exchange filter")
+    query = (q or "").strip().upper()
+    try:
+        snapshot = _directory_provider.directory()
+    except FuturesDirectoryProviderError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "futures_directory_provider_error",
+                "reason": str(exc),
+                "provider": _directory_provider.provider_name,
+            },
+        ) from exc
+
+    matches = [
+        item for item in snapshot.items
+        if (normalized_exchange is None or item.exchange == normalized_exchange)
+        and (
+            not query
+            or query in item.symbol
+            or query in item.product
+            or query in item.contract_name.upper()
+            or query in item.product_name.upper()
+        )
+    ]
+    return FuturesDirectoryResponse(
+        provider=snapshot.provider, fetched_at=snapshot.fetched_at,
+        source_updated_at=snapshot.source_updated_at,
+        result_count=min(len(matches), limit), total_count=len(matches),
+        limit=limit, rows_skipped=snapshot.rows_skipped,
+        items=[FuturesDirectoryItemResponse(
+            symbol=item.symbol, exchange=item.exchange, product=item.product,
+            product_name=item.product_name, contract_name=item.contract_name,
+            multiplier=item.multiplier, tick_size=item.tick_size,
+        ) for item in matches[:limit]],
+        notes=(
+            [
+                "Directory is a best-effort OpenCTP reference list exposed via AKShare, not an exchange-certified master.",
+                "Confirm contract identity, multiplier and tick size with the exchange or broker before relying on them.",
+                "Only commodity futures symbols are included; options and continuous symbols are excluded.",
+            ] + ([f"{snapshot.rows_skipped} source row(s) were omitted due to invalid, unsupported or conflicting data."] if snapshot.rows_skipped else [])
+        ),
+    )
 
 
 @router.post(

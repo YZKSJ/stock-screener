@@ -7,6 +7,7 @@ def test_derivatives_routes_are_registered():
         for route in app.router.routes
         if getattr(route, "path", None)
     }
+    assert "/api/v1/derivatives/directory" in paths
     assert "/api/v1/derivatives/validate-snapshot" in paths
     assert "/api/v1/derivatives/history/daily" in paths
     assert "/api/v1/derivatives/scan/daily" in paths
