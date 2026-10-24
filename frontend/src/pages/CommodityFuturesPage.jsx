@@ -6,7 +6,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SearchIcon from '@mui/icons-material/Search';
-import { scanCommodityFutures } from '../api/derivatives';
+import { scanCommodityFutures, searchCommodityContracts } from '../api/derivatives';
 
 const EXCHANGES = [
   { value: 'SHFE', label: 'SHFE · Shanghai' }, { value: 'DCE', label: 'DCE · Dalian' },
@@ -24,25 +24,69 @@ const defaults = () => {
   start.setMonth(start.getMonth() - 4);
   return { start: dateText(start), end: dateText(end) };
 };
-const emptyContract = () => ({ symbol: '', exchange: 'SHFE', product: '', multiplier: '10', tick_size: '1' });
+const emptyContract = () => ({ symbol: '', exchange: 'SHFE', product: '', multiplier: '', tick_size: '' });
 const pct = (v) => Number.isFinite(v) ? `${v.toFixed(2)}%` : '—';
 const fmt = (v) => Number.isFinite(v) ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—';
 
 function CommodityFuturesPage() {
   const dates = useMemo(defaults, []);
-  const [contracts, setContracts] = useState([
-    { symbol: 'MA701', exchange: 'CZCE', product: 'MA', multiplier: '10', tick_size: '1' },
-    { symbol: 'RB2701', exchange: 'SHFE', product: 'RB', multiplier: '10', tick_size: '1' },
-  ]);
+  const [contracts, setContracts] = useState([emptyContract()]);
   const [start, setStart] = useState(dates.start);
   const [end, setEnd] = useState(dates.end);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [directoryQuery, setDirectoryQuery] = useState('');
+  const [directoryExchange, setDirectoryExchange] = useState('ALL');
+  const [directory, setDirectory] = useState(null);
+  const [directoryBusy, setDirectoryBusy] = useState(false);
+  const [directoryError, setDirectoryError] = useState('');
 
   const update = (idx, key, value) => setContracts((rows) => rows.map(
     (row, i) => (i === idx ? { ...row, [key]: value } : row),
   ));
+
+  const searchDirectory = async (event) => {
+    event.preventDefault();
+    setDirectoryError('');
+    setDirectory(null);
+    setDirectoryBusy(true);
+    try {
+      const options = { q: directoryQuery, limit: 30 };
+      if (directoryExchange !== 'ALL') options.exchange = directoryExchange;
+      setDirectory(await searchCommodityContracts(options));
+    } catch (e) {
+      const d = e?.response?.data?.detail;
+      setDirectoryError((typeof d === 'string' ? d : d?.reason) || e?.message || 'Contract directory request failed.');
+    } finally {
+      setDirectoryBusy(false);
+    }
+  };
+
+  const addDirectoryContract = (item) => {
+    setDirectoryError('');
+    const next = {
+      symbol: item.symbol, exchange: item.exchange, product: item.product,
+      multiplier: String(item.multiplier), tick_size: String(item.tick_size),
+    };
+    const existingIndex = contracts.findIndex(
+      (row) => row.symbol.trim().toUpperCase() === item.symbol && row.exchange === item.exchange,
+    );
+    if (existingIndex >= 0) {
+      setContracts((rows) => rows.map((row, index) => index === existingIndex ? next : row));
+      return;
+    }
+    const blankIndex = contracts.findIndex((row) => !row.symbol.trim());
+    if (blankIndex >= 0) {
+      setContracts((rows) => rows.map((row, index) => index === blankIndex ? next : row));
+      return;
+    }
+    if (contracts.length >= 8) {
+      setDirectoryError('The scan is limited to 8 contracts. Remove one before adding another.');
+      return;
+    }
+    setContracts((rows) => [...rows, next]);
+  };
 
   const submit = async (event) => {
     event.preventDefault();
@@ -93,9 +137,75 @@ function CommodityFuturesPage() {
         </Typography>
       </Box>
       <Alert severity="info">
-        This first version uses best-effort AKShare/Sina daily history on demand. It is not a real-time exchange feed
-        and does not place orders. Contract multipliers and tick sizes are editable examples; verify them before analysis.
+        Daily history is best-effort AKShare/Sina data, not a real-time exchange feed. The contract directory below is a
+        third-party reference and can be stale; verify specifications with your exchange or broker before relying on them.
+        This page does not place orders.
       </Alert>
+      <Paper component="form" onSubmit={searchDirectory} variant="outlined" sx={{ p: { xs: 1.5, md: 2.5 } }}>
+        <Stack spacing={1.5}>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>Find a contract</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Search by code or product name, then use a result to fill the scan form and its contract specifications.
+            </Typography>
+          </Box>
+          <Grid container spacing={1.25} alignItems="center">
+            <Grid item xs={12} sm={6} md={6}>
+              <TextField fullWidth size="small" label="Search contract directory"
+                placeholder="e.g. RB2701, MA, 甲醇" value={directoryQuery}
+                onChange={(e) => setDirectoryQuery(e.target.value)} />
+            </Grid>
+            <Grid item xs={12} sm={3} md={3}>
+              <TextField fullWidth select size="small" label="Directory exchange" value={directoryExchange}
+                onChange={(e) => setDirectoryExchange(e.target.value)}>
+                <MenuItem value="ALL">All commodity exchanges</MenuItem>
+                {EXCHANGES.map((x) => <MenuItem key={x.value} value={x.value}>{x.label}</MenuItem>)}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={3} md={3}>
+              <Button type="submit" fullWidth variant="outlined" disabled={directoryBusy}
+                startIcon={directoryBusy ? <CircularProgress size={18} /> : <SearchIcon />}>
+                {directoryBusy ? 'Searching…' : 'Search directory'}
+              </Button>
+            </Grid>
+          </Grid>
+          {directoryError && <Alert severity="warning">{directoryError}</Alert>}
+          {directory && (
+            <Stack spacing={1}>
+              <Typography variant="body2" color="text.secondary">
+                {directory.total_count} match(es) · showing {directory.result_count}
+                {directory.source_updated_at
+                  ? ` · source updated ${new Date(directory.source_updated_at).toLocaleString()}`
+                  : ' · source update time unavailable'}
+              </Typography>
+              {directory.notes?.map((note) => (
+                <Typography key={note} variant="caption" color="text.secondary">{note}</Typography>
+              ))}
+              {directory.items.map((item) => (
+                <Box key={`${item.exchange}.${item.symbol}`}
+                  sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    gap: 1.5, py: 1, borderTop: 1, borderColor: 'divider' }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {item.symbol} · {item.exchange} · {item.contract_name || item.product_name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Product {item.product} · multiplier {fmt(item.multiplier)} · tick {fmt(item.tick_size)}
+                    </Typography>
+                  </Box>
+                  <Button type="button" size="small" variant="outlined" disabled={busy}
+                    aria-label={`Use ${item.symbol}`} onClick={() => addDirectoryContract(item)}>
+                    Use contract
+                  </Button>
+                </Box>
+              ))}
+              {!directory.items.length && (
+                <Typography variant="body2" color="text.secondary">No matching commodity futures were found.</Typography>
+              )}
+            </Stack>
+          )}
+        </Stack>
+      </Paper>
       <Paper component="form" onSubmit={submit} variant="outlined" sx={{ p: { xs: 1.5, md: 2.5 } }}>
         <Stack spacing={2}>
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={1}>
@@ -111,7 +221,7 @@ function CommodityFuturesPage() {
             <Box key={i} sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 2 }}>
               <Grid container spacing={1.25} alignItems="center">
                 <Grid item xs={12} sm={6} md={2.4}>
-                  <TextField fullWidth size="small" label="Contract code" value={c.symbol} placeholder="e.g. MA701"
+                  <TextField fullWidth size="small" label="Contract code" value={c.symbol} placeholder="Choose from directory or type code"
                     inputProps={{ 'aria-label': `Contract code ${i + 1}` }}
                     onChange={(e) => update(i, 'symbol', e.target.value)} />
                 </Grid>
@@ -249,6 +359,7 @@ function CommodityFuturesPage() {
           <Alert severity="info">
             Returns use bars in the selected series. Volatility is historical realized volatility, not option implied volatility.
             Missing sessions are not exchange-calendar-adjusted. Continuous contracts can contain roll discontinuities.
+            Directory metadata is a prefill aid and does not verify current tradability or exchange specifications.
           </Alert>
           {items.some((item) => item.status === 'provider_error') && (
             <Alert severity="warning">Some symbols could not be fetched. Check contract codes; other rows remain usable.</Alert>
