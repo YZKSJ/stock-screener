@@ -33,6 +33,7 @@ import { isLiveOptionsAvailable } from './features/options/optionsAvailability';
 import {
   loadBreadthPage,
   loadChatbotPage,
+  loadCommodityFuturesPage,
   loadGroupRankingsPage,
   loadMarketScanPage,
   loadOperationsPage,
@@ -57,6 +58,7 @@ const GroupRankingsPage = lazy(loadGroupRankingsPage);
 const ValidationPage = lazy(loadValidationPage);
 const ThemesPage = lazy(loadThemesPage);
 const ChatbotPage = lazy(loadChatbotPage);
+const CommodityFuturesPage = lazy(loadCommodityFuturesPage);
 const OperationsPage = lazy(loadOperationsPage);
 const OptionsPage = lazy(loadOptionsPage);
 const OptionsSymbolPage = lazy(loadOptionsSymbolPage);
@@ -272,6 +274,7 @@ function AppShell() {
               <Route path="/breadth" element={<BreadthPage />} />
               <Route path="/groups" element={<GroupRankingsPage />} />
               <Route path="/validation" element={<ValidationPage />} />
+              <Route path="/derivatives" element={<CommodityFuturesPage />} />
               {features.themes && <Route path="/themes" element={<ThemesPage />} />}
               {features.chatbot && <Route path="/chatbot" element={<ChatbotPage />} />}
               <Route path="/options" element={<LiveOptionsRoute />} />

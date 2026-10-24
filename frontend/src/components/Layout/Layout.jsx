@@ -275,6 +275,7 @@ function Layout({ children }) {
 
   const navItems = [
     ...CORE_NAV_ITEMS,
+    { path: '/derivatives', label: 'Futures', matchPrefix: true, icon: <CandlestickChartIcon /> },
     { path: '/validation', label: 'Backtest', icon: <HistoryIcon /> },
     ...(optionsAvailable ? [{ path: '/options', label: 'Options', matchPrefix: true, icon: <CandlestickChartIcon /> }] : []),
     ...(features.themes ? [{ path: '/themes', label: 'Themes', icon: <AutoAwesomeIcon /> }] : []),

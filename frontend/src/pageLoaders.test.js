@@ -14,6 +14,8 @@ describe('loaderForPath', () => {
     ['/', loadMarketScanPage],
     ['/scan', loadScanPage],
     ['/breadth', loadBreadthPage],
+    ['/derivatives', loadCommodityFuturesPage],
+    ['/derivatives/', loadCommodityFuturesPage],
     ['/stocks/AAPL', loadStockDetails],
     ['/options/AAPL', loadOptionsSymbolPage],
     // The router renders these too: it ignores a trailing slash and case.
