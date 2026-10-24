@@ -18,7 +18,7 @@ The response includes provider identity, fetch time, requested dates, first/last
 
 ## Bounded contract-list scan
 
-`POST /api/v1/derivatives/scan/daily` accepts 1–8 explicitly supplied contracts and fetches them sequentially. It is a watchlist/selected-contract scan, not an automatic full-market universe scan. Rows with sufficient history are ranked by 20-bar return descending; contracts with insufficient history remain visible but unranked, and provider errors are reported per contract rather than aborting the whole batch.
+`POST /api/v1/derivatives/scan/daily` accepts 1–8 explicitly supplied contracts and fetches them sequentially. It is a watchlist/selected-contract scan, not an automatic full-market universe scan. Rows with sufficient history are ranked by 20-bar return descending; contracts with insufficient history remain visible but unranked, and provider errors are reported per contract rather than aborting the whole batch. Each contract row also carries quality warnings for continuous/rolled series, malformed or conflicting rows excluded during normalization, empty results, and short history. These flags are informational and do not certify source accuracy.
 
 ## Data-source caveats
 

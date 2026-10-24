@@ -1,7 +1,7 @@
 """Tests for ranking logic used by the bounded daily scan."""
 from datetime import date
 from app.schemas.derivatives import FuturesDailyIndicatorsResponse, FuturesDailyScanItemResponse
-from app.api.v1.derivatives import _rank_scan_items
+from app.api.v1.derivatives import _history_quality_warnings, _rank_scan_items
 
 
 def item(symbol, ret, *, status="ok"):
@@ -25,3 +25,21 @@ def test_scan_ranks_20_bar_return_descending_and_leaves_unranked_last():
     ranked = _rank_scan_items([item("MA", 2.0), item("RB", -1.0), item("FG", None, status="insufficient_history")])
     assert [x.symbol for x in ranked] == ["MA", "RB", "FG"]
     assert [x.rank for x in ranked] == [1, 2, None]
+
+
+def test_history_quality_warnings_explain_continuous_and_filtered_data():
+    warnings = _history_quality_warnings(
+        series_kind="continuous_proxy", row_count=12, rows_skipped=2, duplicate_dates_skipped=1,
+    )
+    assert any("Continuous/rolled" in warning for warning in warnings)
+    assert any("2 malformed" in warning for warning in warnings)
+    assert any("1 duplicate/conflicting" in warning for warning in warnings)
+    assert any("at least 21" in warning for warning in warnings)
+
+
+def test_history_quality_warning_for_empty_series():
+    warnings = _history_quality_warnings(
+        series_kind="single_contract", row_count=0, rows_skipped=0, duplicate_dates_skipped=0,
+    )
+    assert len(warnings) == 1
+    assert "No daily bars" in warnings[0]

@@ -46,6 +46,24 @@ def _indicator_response(bars: tuple[FuturesDailyBar, ...]) -> FuturesDailyIndica
     )
 
 
+def _history_quality_warnings(
+    *, series_kind: str, row_count: int, rows_skipped: int, duplicate_dates_skipped: int,
+) -> list[str]:
+    """Return human-readable, non-blocking warnings for a history series."""
+    warnings: list[str] = []
+    if series_kind == "continuous_proxy":
+        warnings.append("Continuous/rolled series may contain roll discontinuities; do not treat as a deliverable contract.")
+    if rows_skipped:
+        warnings.append(f"{rows_skipped} malformed OHLC row(s) were excluded.")
+    if duplicate_dates_skipped:
+        warnings.append(f"{duplicate_dates_skipped} duplicate/conflicting row(s) were excluded.")
+    if row_count == 0:
+        warnings.append("No daily bars were returned for this symbol and date range; verify symbol and source coverage.")
+    elif row_count < 21:
+        warnings.append(f"Only {row_count} daily bar(s) returned; at least 21 are needed for a 20-bar return.")
+    return warnings
+
+
 def _rank_scan_items(
     items: list[FuturesDailyScanItemResponse],
 ) -> list[FuturesDailyScanItemResponse]:
@@ -170,6 +188,12 @@ def scan_daily(request: FuturesDailyScanRequest) -> FuturesDailyScanResponse:
             status=status, series_kind=result.series_kind,
             first_date=result.first_date, last_date=result.last_date,
             row_count=len(result.bars), rows_skipped=result.rows_skipped,
+            duplicate_dates_skipped=result.duplicate_dates_skipped,
+            quality_warnings=_history_quality_warnings(
+                series_kind=result.series_kind, row_count=len(result.bars),
+                rows_skipped=result.rows_skipped,
+                duplicate_dates_skipped=result.duplicate_dates_skipped,
+            ),
             analysis=analysis,
             reason_code=(
                 "insufficient_history_for_20_bar_return"

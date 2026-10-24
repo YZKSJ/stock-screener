@@ -156,6 +156,8 @@ class FuturesDailyScanItemResponse(_StrictModel):
     last_date: date | None = None
     row_count: int = Field(default=0, ge=0)
     rows_skipped: int = Field(default=0, ge=0)
+    duplicate_dates_skipped: int = Field(default=0, ge=0)
+    quality_warnings: list[str] = Field(default_factory=list)
     analysis: FuturesDailyIndicatorsResponse | None = None
     reason_code: str | None = None
 

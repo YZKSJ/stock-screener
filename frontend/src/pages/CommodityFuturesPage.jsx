@@ -209,6 +209,7 @@ function CommodityFuturesPage() {
                 <TableCell align="right">5-bar %</TableCell><TableCell align="right">20-bar %</TableCell>
                 <TableCell>Trend</TableCell><TableCell align="right">20-bar RV ann.</TableCell>
                 <TableCell align="right">Volume ratio</TableCell><TableCell align="right">OI change</TableCell>
+                <TableCell>Data quality</TableCell>
               </TableRow></TableHead>
               <TableBody>
                 {items.map((item) => {
@@ -232,9 +233,16 @@ function CommodityFuturesPage() {
                     <TableCell align="right">{a ? pct(a.realized_volatility_20_annualized_pct) : '—'}</TableCell>
                     <TableCell align="right">{a?.volume_ratio_5_to_previous_20 == null ? '—' : `${fmt(a.volume_ratio_5_to_previous_20)}x`}</TableCell>
                     <TableCell align="right">{a ? pct(a.open_interest_change_5_bar_pct) : '—'}</TableCell>
+                    <TableCell sx={{ minWidth: 240, maxWidth: 360 }}>
+                      {item.quality_warnings?.length
+                        ? <Stack spacing={0.5}>{item.quality_warnings.map((warning) => (
+                          <Typography key={warning} variant="caption" color="warning.main">{warning}</Typography>
+                        ))}</Stack>
+                        : <Typography variant="caption" color="text.secondary">No row-level flags</Typography>}
+                    </TableCell>
                   </TableRow>;
                 })}
-                {!items.length && <TableRow><TableCell colSpan={11}>No results were returned.</TableCell></TableRow>}
+                {!items.length && <TableRow><TableCell colSpan={12}>No results were returned.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </TableContainer>
