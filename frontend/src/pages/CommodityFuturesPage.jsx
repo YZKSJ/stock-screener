@@ -173,10 +173,11 @@ function CommodityFuturesPage() {
           {directory && (
             <Stack spacing={1}>
               <Typography variant="body2" color="text.secondary">
-                {directory.total_count} match(es) · showing {directory.result_count}
+                Source {directory.provider} · fetched {new Date(directory.fetched_at).toLocaleString()}
                 {directory.source_updated_at
                   ? ` · source updated ${new Date(directory.source_updated_at).toLocaleString()}`
                   : ' · source update time unavailable'}
+                {' · '}{directory.total_count} match(es), showing {directory.result_count}
               </Typography>
               {directory.notes?.map((note) => (
                 <Typography key={note} variant="caption" color="text.secondary">{note}</Typography>
@@ -191,6 +192,7 @@ function CommodityFuturesPage() {
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       Product {item.product} · multiplier {fmt(item.multiplier)} · tick {fmt(item.tick_size)}
+                      {' · '}tick value {fmt(item.multiplier * item.tick_size)} CNY/lot
                     </Typography>
                   </Box>
                   <Button type="button" size="small" variant="outlined" disabled={busy}

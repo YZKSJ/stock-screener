@@ -51,6 +51,8 @@ describe('CommodityFuturesPage', () => {
     expect(await screen.findByText(/甲醇701/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Use MA701' }));
     expect(screen.getByLabelText('Contract code 1')).toHaveValue('MA701');
+    expect(screen.getByText(/tick value 10 CNY\/lot/)).toBeInTheDocument();
+    expect(screen.getByText(/akshare:futures_fees_info\/openctp/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Run research scan' }));
     await screen.findByText('Scan results');
     expect(apiMocks.scan).toHaveBeenCalledTimes(1);
