@@ -332,7 +332,9 @@ function CommodityFuturesPage() {
                     <TableCell>{item.rank ?? '—'}</TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>{item.symbol}</Typography>
-                      <Typography variant="caption" color="text.secondary">{item.exchange} · {item.series_kind || '—'}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {item.exchange} · {item.series_kind || '—'} · last bar {item.last_date || '—'}
+                      </Typography>
                     </TableCell>
                     <TableCell><Chip size="small" variant="outlined"
                       color={item.status === 'ok' ? 'success' : item.status === 'provider_error' ? 'error' : 'warning'}

@@ -55,7 +55,7 @@ Submit to `POST /api/v1/derivatives/scan/daily`. Returns and realized volatility
 - No CTP login, licensed market-data subscription or order submission.
 - No background ingestion or persistence; history is fetched on demand.
 - No exchange holiday/night-session trading calendar.
-- No contract directory, roll-adjustment engine, chart UI, Greeks or backtest.
+- No roll-adjustment engine, chart UI, Greeks or backtest.
 
 ## Tests
 
