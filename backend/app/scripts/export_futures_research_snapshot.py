@@ -52,7 +52,7 @@ def contract_expiry_month(symbol: str, reference_date: date) -> tuple[int, int] 
         return year, month
     year_digit = int(digits[0])
     candidates = [
-        year for year in range(reference_date.year - 1, reference_date.year + 11)
+        year for year in range(reference_date.year - 1, reference_date.year + 4)
         if year % 10 == year_digit
         and (year, month) >= (reference_date.year, reference_date.month)
     ]

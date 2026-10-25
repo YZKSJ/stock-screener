@@ -28,6 +28,7 @@ def test_contract_expiry_parses_four_and_three_digit_suffixes():
     assert contract_expiry_month("RB2611", reference) == (2026, 11)
     assert contract_expiry_month("MA701", reference) == (2027, 1)
     assert contract_expiry_month("RB2601", reference) == (2026, 1)
+    assert contract_expiry_month("MA601", reference) is None  # old one-digit year must not roll forward ten years
     assert contract_expiry_month("BAD000", reference) is None
 
 
