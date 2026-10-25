@@ -63,7 +63,7 @@ describe('FuturesCommandCenterPage', () => {
     await screen.findByText(/akshare:futures_zh_daily_sina/);
     expect(apiMocks.history).toHaveBeenCalledTimes(1);
     expect(screen.getByText('+1.34%')).toBeInTheDocument();
-    expect(screen.getByText(/12\\.5/)).toBeInTheDocument();
+    expect(screen.getByText(/12[.]5%/)).toBeInTheDocument();
     expect(screen.getByText(/实际历史收盘价计算/)).toBeInTheDocument();
   });
 
