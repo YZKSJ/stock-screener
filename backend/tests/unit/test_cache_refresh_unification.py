@@ -1176,6 +1176,11 @@ def test_task_registry_lists_daily_market_pipelines_only():
 
 def test_task_registry_triggers_daily_market_pipeline_with_market(monkeypatch):
     from app.services.task_registry_service import TaskRegistryService
+    import app.services.task_registry_service as task_registry_module
+
+    # This test verifies dispatch mechanics, not whether HK is open today.
+    # Trading-day preflight has its own coverage and uses the real current date.
+    monkeypatch.setattr(task_registry_module, "_run_blockers", lambda entries: {})
 
     service = TaskRegistryService()
     fake_task = MagicMock()
