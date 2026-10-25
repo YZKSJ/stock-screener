@@ -6,6 +6,7 @@ import StaticHomePage from './pages/StaticHomePage';
 import StaticScanPage from './pages/StaticScanPage';
 import StaticBreadthPage from './pages/StaticBreadthPage';
 import StaticGroupsPage from './pages/StaticGroupsPage';
+import FuturesCommandCenterPage from '../pages/FuturesCommandCenterPage';
 import { StaticMarketProvider } from './StaticMarketContext';
 import {
   getStaticSupportedMarkets,
@@ -35,6 +36,7 @@ function StaticAppContent() {
             <Route path="/scan" element={<StaticScanPage />} />
             <Route path="/breadth" element={<StaticBreadthPage />} />
             <Route path="/groups" element={<StaticGroupsPage />} />
+            <Route path="/derivatives" element={<FuturesCommandCenterPage />} />
             <Route path="/options" element={<StaticOptionsPage />} />
             <Route path="/options/:symbol" element={<StaticOptionsSymbolPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

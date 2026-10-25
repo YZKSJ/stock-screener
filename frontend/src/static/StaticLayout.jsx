@@ -18,6 +18,7 @@ import {
 import { useLocation } from 'react-router-dom';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import CandlestickChartIcon from '@mui/icons-material/CandlestickChart';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import {
   BrandMark,
@@ -72,8 +73,14 @@ function StaticLayout({ children }) {
   const selectedUnavailable = getStaticUnavailableMarkets(manifestQuery.data).includes(selectedMarket);
   const now = useMinuteClock();
   const status = selectedUnavailable ? null : publicationStatus(marketEntry.publication, now);
-  const allNavItems = [...CORE_NAV_ITEMS, { path: '/options', label: 'Options', matchPrefix: true, icon: <CandlestickChartIcon /> }];
-  const navItems = isStaticOptionsAvailable(marketEntry) ? allNavItems : CORE_NAV_ITEMS;
+  const futuresNavItem = { path: '/derivatives', label: 'Futures', matchPrefix: true, icon: <ShowChartIcon /> };
+  const optionsNavItem = { path: '/options', label: 'Options', matchPrefix: true, icon: <CandlestickChartIcon /> };
+  const allNavItems = [...CORE_NAV_ITEMS, futuresNavItem, optionsNavItem];
+  const navItems = [
+    ...CORE_NAV_ITEMS,
+    futuresNavItem,
+    ...(isStaticOptionsAvailable(marketEntry) ? [optionsNavItem] : []),
+  ];
   const { pathname } = useLocation();
   // Title from every route: /options still renders (an unavailable notice) when its nav item is hidden.
   const pageLabel = allNavItems.find((item) => (
