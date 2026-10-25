@@ -13,7 +13,6 @@ on:
   pull_request:
     paths:
       - .github/workflows/static-site-publish.yml
-      - .github/workflows/futures-research-snapshot.yml
       - backend/app/scripts/download_static_market_fallbacks.py
       - backend/app/scripts/validate_static_market_artifacts.py
       - backend/app/services/static_artifact_combiner.py
@@ -23,14 +22,6 @@ on:
       - backend/app/services/static_site_export_service.py
       - backend/app/services/static_global_artifacts.py
       - backend/app/services/static_market_artifact_contract.py
-      - backend/app/scripts/export_futures_research_snapshot.py
-      - backend/tests/unit/test_futures_static_snapshot.py
-      - frontend/src/pages/FuturesCommandCenterPage.jsx
-      - frontend/src/pages/FuturesCommandCenterPage.css
-      - frontend/src/static/StaticAppShell.jsx
-      - frontend/src/static/StaticLayout.jsx
-      - frontend/src/config/runtimeMode.js
-      - frontend/src/api/derivatives.js
 
 concurrency:
   # One production publish at a time; a newer pending run replaces an older
@@ -154,24 +145,6 @@ jobs:
             --artifacts-dir /tmp/static-market-artifacts \
             --price-manifest-dir /tmp/daily-price-manifests \
             --selected-markets '[]'
-
-      # Consume the latest usable snapshot, shared by all publisher wake-ups.
-      # The separate daily producer retains the last-good release asset on upstream failure.
-      - name: Download futures research snapshot
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          mkdir -p frontend/public/static-data
-          mkdir -p "$RUNNER_TEMP/futures-snapshot"
-          if gh release download futures-research-data \
-              --repo "$REPOSITORY" \
-              --pattern 'futures-research.json' \
-              --dir "$RUNNER_TEMP/futures-snapshot" >/dev/null 2>&1; then
-            cp "$RUNNER_TEMP/futures-snapshot/futures-research.json" frontend/public/static-data/futures-research.json
-          else
-            echo '{"schema_version":"futures-research-static-v1","status":"offline","generated_at":null,"as_of_date":null,"source":"unavailable","directory":{"provider":"unavailable","items":[]},"histories":[],"notes":["No usable futures snapshot has been published yet. Run the Futures Research Snapshot workflow on the default branch."]}' > frontend/public/static-data/futures-research.json
-          fi
 
       - name: Build static frontend
         env:
