@@ -215,7 +215,19 @@ def build_snapshot(
             )
         result["histories"].append(history_record)
 
-    result["status"] = "ready" if any(row["status"] == "ok" for row in result["histories"]) else "directory_ready"
+    fresh_history_available = any(
+        row["status"] == "ok"
+        and row.get("last_date") is not None
+        and row.get("end_date_lag_days") is not None
+        and row["end_date_lag_days"] <= 7
+        for row in result["histories"]
+    )
+    result["status"] = "ready" if fresh_history_available else "directory_ready"
+    if not fresh_history_available:
+        result["notes"].append(
+            "No selected contract returned a recent-enough daily bar (within 7 calendar days of the snapshot date). "
+            "The publisher should keep its last-good snapshot."
+        )
     result["notes"].append(
         f"Daily history was requested only for a small watchlist of {len(selected)} contracts."
     )

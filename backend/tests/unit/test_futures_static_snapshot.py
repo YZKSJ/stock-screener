@@ -79,3 +79,57 @@ def test_build_snapshot_preserves_directory_when_history_provider_fails():
     assert snapshot["directory"]["items"][0]["symbol"] == "RB2611"
     assert snapshot["histories"][0]["status"] == "provider_error"
     assert snapshot["histories"][0]["error"] == "upstream_request_failed"
+
+def test_stale_history_does_not_mark_snapshot_publishable():
+    from app.domain.derivatives.history import FuturesDailyBar, FuturesDailyHistory
+
+    as_of = date(2026, 10, 25)
+    contract_item = item("RB2611", "RB")
+    directory = SimpleNamespace(
+        provider="fake-directory",
+        fetched_at=datetime(2026, 10, 25, tzinfo=timezone.utc),
+        source_updated_at=None,
+        rows_skipped=0,
+        items=(contract_item,),
+    )
+
+    class DirectoryProvider:
+        def directory(self):
+            return directory
+
+    class HistoryProvider:
+        provider_name = "fake-history"
+
+        def daily_history(self, contract, *, start_date, end_date):
+            bars = tuple(
+                FuturesDailyBar(
+                    trading_date=date(2026, 9, day),
+                    open_price=100 + day,
+                    high_price=102 + day,
+                    low_price=99 + day,
+                    close_price=101 + day,
+                    volume=1000 + day,
+                    open_interest=2000 + day,
+                    settlement_price=101 + day,
+                )
+                for day in range(1, 6)
+            )
+            return FuturesDailyHistory(
+                symbol=contract.symbol,
+                exchange=contract.exchange,
+                provider="fake-history",
+                fetched_at=datetime(2026, 10, 25, tzinfo=timezone.utc),
+                series_kind="single_contract",
+                bars=bars,
+            )
+
+    snapshot = build_snapshot(
+        as_of=as_of,
+        directory_provider=DirectoryProvider(),
+        history_provider=HistoryProvider(),
+    )
+
+    assert snapshot["histories"][0]["status"] == "ok"
+    assert snapshot["histories"][0]["end_date_lag_days"] > 7
+    assert snapshot["status"] == "directory_ready"
+    assert any("last-good snapshot" in note for note in snapshot["notes"])
