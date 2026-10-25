@@ -26,7 +26,7 @@ from app.infra.providers.akshare_futures_history import (
 )
 
 DEFAULT_PRODUCTS = ("RB", "MA", "I", "CU", "AG")
-_SYMBOL_RE = re.compile(r"^([A-Z]{1,3})(\\d{3,4})$")
+_SYMBOL_RE = re.compile(r"^([A-Z]{1,3})(\d{3,4})$")
 
 
 def contract_expiry_month(symbol: str, reference_date: date) -> tuple[int, int] | None:
