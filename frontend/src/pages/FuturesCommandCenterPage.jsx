@@ -189,8 +189,13 @@ function toDirectoryMarket(item) {
 }
 
 function todayText(date = new Date()) {
-  const pad = (value) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  // Market data timestamps use China trading dates even if the viewer is abroad.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
 }
 
 function dateDaysAgo(days) {
@@ -275,6 +280,17 @@ export default function FuturesCommandCenterPage() {
   const [historyError, setHistoryError] = useState('');
 
   const directoryAvailable = directoryStatus === 'connected' && allDirectoryItems.length > 0;
+  const snapshotAgeDays = staticSnapshot?.generated_at
+    ? Math.floor((Date.now() - Date.parse(staticSnapshot.generated_at)) / 86400000)
+    : null;
+  const snapshotStale = STATIC_SITE_MODE && (
+    !Number.isFinite(snapshotAgeDays) || snapshotAgeDays > 7
+    || !['ready'].includes(staticSnapshot?.status)
+  );
+  const currentBarGapDays = dailyHistory?.last_date
+    ? Math.max(0, Math.floor((Date.parse(todayText()) - Date.parse(dailyHistory.last_date)) / 86400000))
+    : null;
+  const currentHistoryStale = currentBarGapDays !== null && currentBarGapDays > 7;
   const selectedIsDirectory = Boolean(selected.isDirectory);
   const analysis = dailyHistory && dailyHistory.symbol === selected.symbol
     && dailyHistory.exchange === selected.exchange ? dailyHistory.analysis : null;
@@ -477,7 +493,8 @@ export default function FuturesCommandCenterPage() {
         <CircleDotIcon sx={{ fontSize: 14 }} />
         <span>
           {directoryAvailable
-            ? <><b>已连接合约目录</b> · 合约代码和规格来自第三方参考表；选中合约后点击“加载日线研究”才会请求日线数据。此页面没有实时行情和下单功能。</>
+            ? <><b>{snapshotStale ? '静态快照可能过期' : '已连接合约目录'}</b> · 合约代码和规格来自第三方参考表；选中合约后点击“加载日线研究”才会显示该合约的日线数据。此页面没有实时行情和下单功能。
+              {STATIC_SITE_MODE && <span> 快照生成时间：{staticSnapshot?.generated_at ? new Date(staticSnapshot.generated_at).toLocaleString() : '未知'}；状态：{staticSnapshot?.status || '未知'}。</span>}</>
             : <><b>演示模式</b> · 当前行情数字、指标值、状态条和日志均为样例数据；中央粒子动画仅为视觉效果。未检测到可用的后端合约目录。</>}
         </span>
       </div>
@@ -615,6 +632,12 @@ export default function FuturesCommandCenterPage() {
             </div>
           </section>
           {historyError && <div className="fc-inline-status is-warning" role="status">{historyError}</div>}
+          {currentHistoryStale && <div className="fc-inline-status is-warning" role="status">
+            最近日线距中国交易日期 {currentBarGapDays} 个自然日，已超过 7 天；可能是上游数据延迟或合约覆盖不足，不是交易所日历判断。
+          </div>}
+          {STATIC_SITE_MODE && snapshotStale && <div className="fc-inline-status is-warning" role="status">
+            当前静态快照生成时间未知、超过 7 天或状态非 ready。请检查 GitHub Actions 的 Futures Research Snapshot 工作流，勿将它视为当前行情。
+          </div>}
           {((dailyHistory?.notes?.length || 0) + (dailyHistory?.quality_warnings?.length || 0)) > 0 && (
             <div className="fc-inline-status">{[...(dailyHistory.notes || []), ...(dailyHistory.quality_warnings || [])].join(' ')}</div>
           )}
