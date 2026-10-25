@@ -12,6 +12,15 @@ on:
       - backend/app/domain/derivatives/**
       - backend/app/infra/providers/akshare_futures_*.py
       - backend/tests/unit/test_futures_static_snapshot.py
+      - frontend/futures.html
+      - frontend/src/futures-main.jsx
+      - frontend/src/pages/FuturesCommandCenterPage.jsx
+      - frontend/src/pages/FuturesCommandCenterPage.css
+      - frontend/src/api/derivatives.js
+      - frontend/src/config/runtimeMode.js
+      - frontend/vite.config.js
+      - frontend/package.json
+      - frontend/package-lock.json
 
 permissions:
   contents: read
@@ -71,6 +80,29 @@ jobs:
           )
           PY
 
+      - name: Stage snapshot for standalone Pages build
+        run: |
+          mkdir -p frontend/public/static-data
+          cp "$RUNNER_TEMP/futures-research.json" frontend/public/static-data/futures-research.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Build frontend and standalone futures page
+        env:
+          VITE_STATIC_SITE: "true"
+          VITE_BASE_PATH: /
+        run: |
+          cd frontend
+          npm run build
+          test -s dist/futures.html
+
       - uses: actions/upload-artifact@v7
         with:
           name: futures-research-snapshot
@@ -83,15 +115,19 @@ jobs:
     if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
     runs-on: ubuntu-latest
     permissions:
-      actions: write
+      actions: read
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
       - uses: actions/download-artifact@v7
         with:
           name: futures-research-snapshot
           path: ${{ runner.temp }}/futures-research
 
-      - name: Publish only a usable snapshot, then wake the Pages publisher
+      - name: Publish last-good snapshot for Cloudflare Pages
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -113,5 +149,14 @@ jobs:
           gh release upload futures-research-data "$SNAPSHOT" \
             --repo "$REPOSITORY" --clobber
 
-          gh workflow run static-site-publish.yml \
-            --repo "$REPOSITORY" --ref "$DEFAULT_BRANCH"
+          mkdir -p frontend/public/static-data
+          cp "$SNAPSHOT" frontend/public/static-data/futures-research.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/public/static-data/futures-research.json
+          if git diff --cached --quiet; then
+            echo "Static snapshot is unchanged; no repository commit needed."
+          else
+            git commit -m "data(futures): refresh static research snapshot"
+            git push origin "HEAD:$DEFAULT_BRANCH"
+          fi

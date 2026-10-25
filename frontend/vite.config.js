@@ -69,6 +69,10 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       rollupOptions: {
+        input: {
+          main: fileURLToPath(new URL('./index.html', import.meta.url)),
+          futures: fileURLToPath(new URL('./futures.html', import.meta.url)),
+        },
         output: {
           // MUI and recharts are left to Rollup: a named vendor chunk holds
           // every component any page imports and loads eagerly, while
