@@ -64,6 +64,7 @@ describe('FuturesCommandCenterPage', () => {
     expect(apiMocks.history).toHaveBeenCalledTimes(1);
     expect(screen.getByText('+1.34%')).toBeInTheDocument();
     expect(screen.getByText('12.50%')).toBeInTheDocument();
+    expect(screen.getByText(/实际历史收盘价计算/)).toBeInTheDocument();
   });
 
   it('filters the example event log', () => {

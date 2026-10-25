@@ -207,6 +207,45 @@ function numberText(value) {
   return Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—';
 }
 
+function calculatePriceReturnBacktest(bars) {
+  const validBars = (bars || []).filter((bar) => Number.isFinite(bar.close_price) && bar.close_price > 0);
+  if (validBars.length < 21) return null;
+  const closes = validBars.map((bar) => bar.close_price);
+  let equity = 1;
+  let peak = 1;
+  let maxDrawdown = 0;
+  let activeDays = 0;
+  let positiveDays = 0;
+  const curve = [equity];
+
+  // The SMA signal uses only the previous 20 closes, then applies to the
+  // next close-to-close return. This is a gross price-return proxy, not futures P&L.
+  for (let i = 20; i < closes.length; i += 1) {
+    const previous = closes.slice(i - 20, i);
+    const sma5 = previous.slice(-5).reduce((sum, value) => sum + value, 0) / 5;
+    const sma20 = previous.reduce((sum, value) => sum + value, 0) / 20;
+    const isLong = sma5 > sma20;
+    const dailyReturn = isLong ? (closes[i] / closes[i - 1]) - 1 : 0;
+    if (isLong) {
+      activeDays += 1;
+      if (dailyReturn > 0) positiveDays += 1;
+    }
+    equity *= 1 + dailyReturn;
+    peak = Math.max(peak, equity);
+    maxDrawdown = Math.min(maxDrawdown, (equity / peak) - 1);
+    curve.push(equity);
+  }
+
+  return {
+    barCount: validBars.length,
+    totalReturnPct: (equity - 1) * 100,
+    maxDrawdownPct: maxDrawdown * 100,
+    activeDays,
+    positiveDayRatePct: activeDays ? (positiveDays / activeDays) * 100 : null,
+    points: linePoints(curve, 320, 100, 4),
+  };
+}
+
 function linePoints(values, width = 100, height = 60, padding = 4) {
   if (!values || values.length < 2) return '';
   const min = Math.min(...values);
@@ -224,6 +263,7 @@ export default function FuturesCommandCenterPage() {
   const [mode, setMode] = useState('MOMENTUM');
   const [activeLog, setActiveLog] = useState('ALL');
   const [directoryItems, setDirectoryItems] = useState([]);
+  const [directoryMeta, setDirectoryMeta] = useState(null);
   const [allDirectoryItems, setAllDirectoryItems] = useState([]);
   const [staticSnapshot, setStaticSnapshot] = useState(null);
   const [directoryQuery, setDirectoryQuery] = useState('');
@@ -260,6 +300,7 @@ export default function FuturesCommandCenterPage() {
         .then((snapshot) => {
           if (!alive) return;
           setStaticSnapshot(snapshot);
+          setDirectoryMeta(snapshot?.directory || null);
           const items = Array.isArray(snapshot?.directory?.items) ? snapshot.directory.items : [];
           setAllDirectoryItems(items);
           setDirectoryItems(items.slice(0, 30));
@@ -287,6 +328,7 @@ export default function FuturesCommandCenterPage() {
       .then((result) => {
         if (!alive) return;
         const items = Array.isArray(result?.items) ? result.items : [];
+        setDirectoryMeta(result);
         setAllDirectoryItems(items);
         setDirectoryItems(items);
         setDirectoryStatus(items.length ? 'connected' : 'empty');
@@ -326,6 +368,7 @@ export default function FuturesCommandCenterPage() {
       } else {
         const result = await searchCommodityContracts({ q: directoryQuery, limit: 30 });
         items = Array.isArray(result?.items) ? result.items : [];
+        setDirectoryMeta(result);
         setAllDirectoryItems(items);
         setDirectoryItems(items);
       }
@@ -409,6 +452,7 @@ export default function FuturesCommandCenterPage() {
   ] : demoLog;
   const chartValues = bars.map((bar) => bar.close_price).filter(Number.isFinite);
   const liveChartPoints = linePoints(chartValues, 100, 60, 4);
+  const backtest = analysis ? calculatePriceReturnBacktest(bars) : null;
   const selectedPrice = analysis?.latest_close;
   const selectedDate = analysis?.as_of_date || dailyHistory?.last_date;
 
@@ -491,6 +535,12 @@ export default function FuturesCommandCenterPage() {
               <span>{directoryAvailable ? `${directoryItems.length} 个合约目录匹配项` : '离线样例观察列表'}</span>
               <span>{directoryAvailable ? 'REF DATA' : 'DEMO ONLY'}</span>
             </div>
+            {directoryAvailable && directoryMeta && (
+              <div className="fc-panel-foot fc-directory-provenance">
+                <span>{directoryMeta.provider || '第三方参考表'}</span>
+                <span>源更新：{directoryMeta.source_updated_at ? new Date(directoryMeta.source_updated_at).toLocaleDateString() : '未知'}</span>
+              </div>
+            )}
           </section>
 
           <section className="fc-panel">
@@ -633,30 +683,34 @@ export default function FuturesCommandCenterPage() {
           </section>
 
           <section className="fc-panel fc-backtest-panel">
-            <div className="fc-panel-title"><span>06 / STRATEGY RESEARCH</span><b>NOT RUN</b></div>
+            <div className="fc-panel-title"><span>06 / STRATEGY RESEARCH</span><b>{backtest ? 'GROSS / DAILY' : 'NOT RUN'}</b></div>
             <div className="fc-backtest-summary">
-              <span>策略回测 / 示例布局</span>
-              <strong>未运行</strong>
-              <small>此处将在接入历史数据后显示回测结果</small>
+              <span>SMA 5/20 · 收盘价收益代理</span>
+              <strong>{backtest ? '已计算 · 未扣成本' : '未运行'}</strong>
+              <small>{backtest
+                ? `${backtest.barCount} 根日线 · ${backtest.activeDays} 个持仓日 · 不含手续费、滑点、乘数、保证金与换月`
+                : '加载至少 21 根真实日线后，计算滞后一根的 SMA5/SMA20 多头/空仓收益代理'}</small>
             </div>
-            <svg className="fc-backtest-chart" viewBox="0 0 320 100" role="img" aria-label="装饰性曲线，非真实回测结果">
+            <svg className="fc-backtest-chart" viewBox="0 0 320 100" role="img"
+              aria-label={backtest ? '基于真实日线的总值变化曲线，未扣交易成本' : '装饰性曲线，非真实回测结果'}>
               <defs>
                 <linearGradient id="fc-backtest-area" x1="0" x2="0" y1="0" y2="1">
                   <stop offset="0%" stopColor="#8b65ff" stopOpacity=".35" />
                   <stop offset="100%" stopColor="#8b65ff" stopOpacity="0" />
                 </linearGradient>
               </defs>
-              <path d="M0 82 L20 77 L38 81 L55 65 L73 69 L95 57 L111 61 L130 44 L151 53 L173 36 L194 41 L216 27 L233 32 L256 18 L277 25 L297 12 L320 8 L320 100 L0 100 Z" fill="url(#fc-backtest-area)" />
-              <polyline points="0,82 20,77 38,81 55,65 73,69 95,57 111,61 130,44 151,53 173,36 194,41 216,27 233,32 256,18 277,25 297,12 320,8" fill="none" stroke="#9e7dff" strokeWidth="2.4" />
-              <polyline points="0,88 20,86 38,85 55,82 73,84 95,78 111,80 130,71 151,75 173,67 194,70 216,62 233,64 256,56 277,58 297,50 320,47" fill="none" stroke="#5ad9ff" strokeWidth="1.5" opacity=".82" />
+              {backtest
+                ? <polyline points={backtest.points} fill="none" stroke="#9e7dff" strokeWidth="2.4" />
+                : <><path d="M0 82 L20 77 L38 81 L55 65 L73 69 L95 57 L111 61 L130 44 L151 53 L173 36 L194 41 L216 27 L233 32 L256 18 L277 25 L297 12 L320 8 L320 100 L0 100 Z" fill="url(#fc-backtest-area)" />
+                  <polyline points="0,82 20,77 38,81 55,65 73,69 95,57 111,61 130,44 151,53 173,36 194,41 216,27 233,32 256,18 277,25 297,12 320,8" fill="none" stroke="#9e7dff" strokeWidth="2.4" /></>}
               {[20,55,90,125,160,195,230,265,300].map((x) => <line key={x} x1={x} y1="0" x2={x} y2="100" stroke="rgba(111,139,214,.10)" />)}
             </svg>
             <div className="fc-backtest-stats">
-              <div><small>总收益率</small><b>未计算</b></div>
-              <div><small>最大回撤</small><b>未计算</b></div>
-              <div><small>胜率</small><b>未计算</b></div>
+              <div><small>累计收益（毛）</small><b>{backtest ? percentText(backtest.totalReturnPct) : '未计算'}</b></div>
+              <div><small>最大回撤</small><b>{backtest ? percentText(backtest.maxDrawdownPct) : '未计算'}</b></div>
+              <div><small>持仓日正收益率</small><b>{backtest ? percentText(backtest.positiveDayRatePct) : '未计算'}</b></div>
             </div>
-            <div className="fc-panel-foot"><span>装饰曲线 · 非结果</span><span>DEMO ONLY</span></div>
+            <div className="fc-panel-foot"><span>{backtest ? '实际历史收盘价计算' : '装饰曲线 · 非结果'}</span><span>{backtest ? 'GROSS / NO COSTS' : 'DEMO ONLY'}</span></div>
           </section>
 
           <section className="fc-panel">

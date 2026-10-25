@@ -6,7 +6,6 @@ import StaticHomePage from './pages/StaticHomePage';
 import StaticScanPage from './pages/StaticScanPage';
 import StaticBreadthPage from './pages/StaticBreadthPage';
 import StaticGroupsPage from './pages/StaticGroupsPage';
-const FuturesCommandCenterPage = lazy(() => import('../pages/FuturesCommandCenterPage'));
 import { StaticMarketProvider } from './StaticMarketContext';
 import {
   getStaticSupportedMarkets,
@@ -14,6 +13,7 @@ import {
   useStaticManifest,
 } from './dataClient';
 
+const FuturesCommandCenterPage = lazy(() => import('../pages/FuturesCommandCenterPage'));
 const StaticOptionsPage = lazy(() => import('./pages/StaticOptionsPage'));
 const StaticOptionsSymbolPage = lazy(() => import('./pages/StaticOptionsSymbolPage'));
 
