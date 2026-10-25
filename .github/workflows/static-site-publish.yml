@@ -13,6 +13,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/static-site-publish.yml
+      - .github/workflows/futures-research-snapshot.yml
       - backend/app/scripts/download_static_market_fallbacks.py
       - backend/app/scripts/validate_static_market_artifacts.py
       - backend/app/services/static_artifact_combiner.py
@@ -154,15 +155,23 @@ jobs:
             --price-manifest-dir /tmp/daily-price-manifests \
             --selected-markets '[]'
 
-      # Build a compact, read-only daily futures snapshot for the static Pages route.
-      # The exporter catches upstream failures and writes an explicit offline status.
-      - name: Export futures research snapshot
-        continue-on-error: true
+      # Consume the latest usable snapshot, shared by all publisher wake-ups.
+      # The separate daily producer retains the last-good release asset on upstream failure.
+      - name: Download futures research snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           mkdir -p frontend/public/static-data
-          cd backend
-          python -m app.scripts.export_futures_research_snapshot \
-            --output ../frontend/public/static-data/futures-research.json
+          mkdir -p "$RUNNER_TEMP/futures-snapshot"
+          if gh release download futures-research-data \
+              --repo "$REPOSITORY" \
+              --pattern 'futures-research.json' \
+              --dir "$RUNNER_TEMP/futures-snapshot" >/dev/null 2>&1; then
+            cp "$RUNNER_TEMP/futures-snapshot/futures-research.json" frontend/public/static-data/futures-research.json
+          else
+            echo '{"schema_version":"futures-research-static-v1","status":"offline","generated_at":null,"as_of_date":null,"source":"unavailable","directory":{"provider":"unavailable","items":[]},"histories":[],"notes":["No usable futures snapshot has been published yet. Run the Futures Research Snapshot workflow on the default branch."]}' > frontend/public/static-data/futures-research.json
+          fi
 
       - name: Build static frontend
         env:

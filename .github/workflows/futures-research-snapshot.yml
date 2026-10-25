@@ -1,0 +1,117 @@
+name: Futures Research Snapshot
+
+on:
+  # After the domestic commodity day session (18:20 China time).
+  schedule:
+    - cron: '20 10 * * 1-5'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/futures-research-snapshot.yml
+      - backend/app/scripts/export_futures_research_snapshot.py
+      - backend/app/domain/derivatives/**
+      - backend/app/infra/providers/akshare_futures_*.py
+      - backend/tests/unit/test_futures_static_snapshot.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: futures-research-snapshot-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            backend/requirements.txt
+            backend/requirements-server.txt
+
+      - name: Install pinned backend dependencies
+        run: uv pip install --system -r backend/requirements.txt
+
+      - name: Export compact daily futures snapshot
+        run: |
+          cd backend
+          python -m app.scripts.export_futures_research_snapshot \
+            --output "$RUNNER_TEMP/futures-research.json"
+
+      - name: Validate snapshot JSON
+        run: |
+          python - "$RUNNER_TEMP/futures-research.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          snapshot = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          required = {"schema_version", "status", "generated_at", "directory", "histories", "notes"}
+          missing = required - snapshot.keys()
+          if missing:
+              raise SystemExit(f"snapshot is missing fields: {sorted(missing)}")
+          if snapshot["status"] not in {"ready", "directory_ready", "offline"}:
+              raise SystemExit(f"unexpected snapshot status: {snapshot['status']}")
+          print(
+              f"Snapshot: status={snapshot['status']}, "
+              f"directory_items={len(snapshot['directory'].get('items', []))}, "
+              f"histories={len(snapshot['histories'])}"
+          )
+          PY
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: futures-research-snapshot
+          path: ${{ runner.temp }}/futures-research.json
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: futures-research-snapshot
+          path: ${{ runner.temp }}/futures-research
+
+      - name: Publish only a usable snapshot, then wake the Pages publisher
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          SNAPSHOT="$RUNNER_TEMP/futures-research/futures-research.json"
+          STATUS="$(python -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("status", "offline"))' "$SNAPSHOT")"
+          if [ "$STATUS" != "ready" ]; then
+            echo "::warning::Futures snapshot status is $STATUS; keeping the previous published snapshot."
+            exit 0
+          fi
+
+          gh release view futures-research-data --repo "$REPOSITORY" >/dev/null 2>&1 || \
+            gh release create futures-research-data \
+              --repo "$REPOSITORY" \
+              --title "Futures Research Snapshot" \
+              --notes "Latest usable, read-only domestic commodity-futures daily research snapshot. Not real-time data."
+
+          gh release upload futures-research-data "$SNAPSHOT" \
+            --repo "$REPOSITORY" --clobber
+
+          gh workflow run static-site-publish.yml \
+            --repo "$REPOSITORY" --ref "$DEFAULT_BRANCH"
