@@ -173,14 +173,177 @@ function SignalBars({ count = 10, className = '' }) {
   );
 }
 
+function toDirectoryMarket(item) {
+  return {
+    ...item,
+    name: item.product_name || item.contract_name || item.product,
+    contract: item.contract_name || item.symbol,
+    price: '—',
+    change: '目录',
+    up: null,
+    wave: [],
+    isDirectory: true,
+  };
+}
+
+function todayText(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function dateDaysAgo(days) {
+  const value = new Date();
+  value.setDate(value.getDate() - days);
+  return todayText(value);
+}
+
+function percentText(value) {
+  return Number.isFinite(value) ? `${value > 0 ? '+' : ''}${value.toFixed(2)}%` : '—';
+}
+
+function numberText(value) {
+  return Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—';
+}
+
+function linePoints(values, width = 100, height = 60, padding = 4) {
+  if (!values || values.length < 2) return '';
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  return values.map((value, index) => {
+    const x = padding + (index / (values.length - 1)) * (width - 2 * padding);
+    const y = height - padding - ((value - min) / range) * (height - 2 * padding);
+    return `${x},${y}`;
+  }).join(' ');
+}
+
 export default function FuturesCommandCenterPage() {
   const [selected, setSelected] = useState(demoMarkets[1]);
   const [mode, setMode] = useState('MOMENTUM');
   const [activeLog, setActiveLog] = useState('ALL');
+  const [directoryItems, setDirectoryItems] = useState([]);
+  const [directoryQuery, setDirectoryQuery] = useState('');
+  const [directoryBusy, setDirectoryBusy] = useState(false);
+  const [directoryStatus, setDirectoryStatus] = useState('loading');
+  const [directoryError, setDirectoryError] = useState('');
+  const [dailyHistory, setDailyHistory] = useState(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+
+  const directoryAvailable = directoryStatus === 'connected' && directoryItems.length > 0;
+  const selectedIsDirectory = Boolean(selected.isDirectory);
+  const analysis = dailyHistory && dailyHistory.symbol === selected.symbol
+    && dailyHistory.exchange === selected.exchange ? dailyHistory.analysis : null;
+  const bars = analysis ? (dailyHistory.bars || []) : [];
+  const latestBar = bars.length ? bars[bars.length - 1] : null;
+  const displayMarkets = directoryAvailable
+    ? directoryItems.slice(0, 8).map(toDirectoryMarket)
+    : demoMarkets;
+
+  useEffect(() => {
+    let alive = true;
+    setDirectoryStatus('loading');
+    searchCommodityContracts({ q: '', limit: 30 })
+      .then((result) => {
+        if (!alive) return;
+        const items = Array.isArray(result?.items) ? result.items : [];
+        setDirectoryItems(items);
+        setDirectoryStatus(items.length ? 'connected' : 'empty');
+        if (items.length) {
+          setSelected((current) => current.isDirectory
+            ? current
+            : toDirectoryMarket(items[0]));
+        }
+      })
+      .catch(() => {
+        if (alive) setDirectoryStatus('offline');
+      });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    setDailyHistory(null);
+    setHistoryError('');
+  }, [selected.symbol, selected.exchange]);
+
+  const searchDirectory = async (event) => {
+    event.preventDefault();
+    setDirectoryBusy(true);
+    setDirectoryError('');
+    try {
+      const result = await searchCommodityContracts({ q: directoryQuery, limit: 30 });
+      const items = Array.isArray(result?.items) ? result.items : [];
+      setDirectoryItems(items);
+      setDirectoryStatus(items.length ? 'connected' : 'empty');
+      if (!items.length) {
+        setDirectoryError('没有找到匹配合约。可以尝试品种代码、合约代码或中文品种名。');
+      } else if (!selected.isDirectory || !items.some((item) => (
+        item.symbol === selected.symbol && item.exchange === selected.exchange
+      ))) {
+        setSelected(toDirectoryMarket(items[0]));
+      }
+    } catch (error) {
+      setDirectoryStatus('offline');
+      const detail = error?.response?.data?.detail;
+      setDirectoryError((typeof detail === 'string' ? detail : detail?.reason)
+        || '合约目录接口暂不可用。请确认后端已部署且当前会话已登录。');
+    } finally {
+      setDirectoryBusy(false);
+    }
+  };
+
+  const loadDailyHistory = async () => {
+    if (!selected.isDirectory) {
+      openResearch();
+      return;
+    }
+    setHistoryBusy(true);
+    setHistoryError('');
+    setDailyHistory(null);
+    try {
+      const response = await fetchCommodityDailyHistory({
+        contract: {
+          symbol: selected.symbol,
+          exchange: selected.exchange,
+          product: selected.product,
+          multiplier: Number(selected.multiplier),
+          tick_size: Number(selected.tick_size),
+          currency: 'CNY',
+        },
+        start_date: dateDaysAgo(180),
+        end_date: todayText(),
+      });
+      setDailyHistory(response);
+      if (!response?.bars?.length) {
+        setHistoryError('数据源没有返回该合约的日线。合约目录可能包含暂不可查询或已过期的代码。');
+      }
+    } catch (error) {
+      const detail = error?.response?.data?.detail;
+      setHistoryError((typeof detail === 'string' ? detail : detail?.reason)
+        || error?.message
+        || '日线读取失败。请检查后端会话、数据源连接和合约代码覆盖。');
+    } finally {
+      setHistoryBusy(false);
+    }
+  };
 
   const openResearch = () => {
     document.getElementById('futures-research-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  const liveLogs = dailyHistory ? [
+    [dailyHistory.fetched_at ? new Date(dailyHistory.fetched_at).toLocaleTimeString() : '--:--:--',
+      'DATA', `已加载 ${dailyHistory.row_count ?? dailyHistory.bars?.length ?? 0} 根日线 · ${dailyHistory.provider || 'provider'}`, 'up'],
+    [dailyHistory.last_date || '--', 'SCAN',
+      `收盘价 ${numberText(analysis?.latest_close)} · 趋势 ${analysis?.trend_state || '历史不足'}`, 'up'],
+    [dailyHistory.last_date || '--', 'QUALITY',
+      `样本数 ${dailyHistory.row_count ?? 0} · 缺失差 ${dailyHistory.end_date_lag_days ?? '未知'} 天`, 
+      dailyHistory.end_date_lag_days > 7 ? 'warn' : 'muted'],
+  ] : demoLog;
+  const chartValues = bars.map((bar) => bar.close_price).filter(Number.isFinite);
+  const liveChartPoints = linePoints(chartValues, 100, 60, 4);
+  const selectedPrice = analysis?.latest_close;
+  const selectedDate = analysis?.as_of_date || dailyHistory?.last_date;
 
   return (
     <div className="futures-command">
@@ -192,21 +355,28 @@ export default function FuturesCommandCenterPage() {
             <div className="fc-brand-sub">DOMESTIC COMMODITY RESEARCH TERMINAL</div>
           </div>
         </div>
-        <div className="fc-top-center"><span className="fc-pulse" /> RESEARCH CORE <b>PREVIEW BUILD</b></div>
-        <div className="fc-top-right"><span className="fc-mode-chip">DEMO MODE</span><span>DATA SOURCE: OFFLINE</span></div>
+        <div className="fc-top-center"><span className="fc-pulse" /> RESEARCH CORE <b>{directoryAvailable ? 'DIRECTORY CONNECTED' : 'PREVIEW BUILD'}</b></div>
+        <div className="fc-top-right">
+          <span className="fc-mode-chip">{directoryAvailable ? 'DAILY DATA MODE' : 'DEMO MODE'}</span>
+          <span>DATA SOURCE: {directoryAvailable ? 'DIRECTORY READY' : 'OFFLINE / SAMPLE'}</span>
+        </div>
       </header>
 
       <div className="fc-disclaimer">
         <CircleDotIcon sx={{ fontSize: 14 }} />
-        <span><b>演示模式</b> · 当前行情数字、指标值、状态条和日志均为样例数据；中央粒子动画仅为视觉效果。正式研究结果请使用下方已接入后端的研究面板。</span>
+        <span>
+          {directoryAvailable
+            ? <><b>已连接合约目录</b> · 合约代码和规格来自第三方参考表；选中合约后点击“加载日线研究”才会请求日线数据。此页面没有实时行情和下单功能。</>
+            : <><b>演示模式</b> · 当前行情数字、指标值、状态条和日志均为样例数据；中央粒子动画仅为视觉效果。未检测到可用的后端合约目录。</>}
+        </span>
       </div>
 
       <section className="fc-modules" aria-label="研究模块状态演示">
         {moduleStates.map((item, index) => (
           <div className="fc-module" key={item.name}>
-            <div className="fc-module-head"><span>0{index + 1} / {item.name}</span><b>{item.score}</b></div>
+            <div className="fc-module-head"><span>0{index + 1} / {item.name}</span><b>{item.name === 'WATCHER' && directoryAvailable ? 'CONNECTED' : item.name === 'ANALYST' && analysis ? 'LOADED' : item.score}</b></div>
             <div className="fc-module-wave"><MiniWave points={[16, 26, 20, 42, 29, 34, 25, 46, 31, 40, 52, 44]} /></div>
-            <div className="fc-module-foot"><span>{item.label}</span><span>{item.width}%</span></div>
+            <div className="fc-module-foot"><span>{item.label}</span><span>{item.name === 'WATCHER' && directoryAvailable ? 'API' : item.width + '%'}</span></div>
             <div className="fc-meter"><span style={{ width: `${item.width}%` }} /></div>
           </div>
         ))}
@@ -215,28 +385,59 @@ export default function FuturesCommandCenterPage() {
       <div className="fc-main-grid">
         <aside className="fc-left-rail">
           <section className="fc-panel">
-            <div className="fc-panel-title"><span>01 / MARKET WATCH</span><b>DEMO</b></div>
+            <div className="fc-panel-title"><span>01 / MARKET WATCH</span><b>{directoryAvailable ? 'API' : 'DEMO'}</b></div>
+            <form className="fc-directory-search" onSubmit={searchDirectory}>
+              <input
+                aria-label="Search commodity contracts"
+                value={directoryQuery}
+                onChange={(event) => setDirectoryQuery(event.target.value)}
+                placeholder="搜索合约 / 品种代码 / 中文名"
+                maxLength={64}
+              />
+              <button type="submit" disabled={directoryBusy}>{directoryBusy ? '...' : '搜索'}</button>
+            </form>
+            {directoryStatus === 'loading' && <div className="fc-inline-status">正在尝试连接后端合约目录…</div>}
+            {directoryStatus === 'offline' && <div className="fc-inline-status is-warning">后端离线或未登录；以下列表为界面样例。</div>}
+            {directoryError && <div className="fc-inline-status is-warning" role="status">{directoryError}</div>}
             <div className="fc-market-list">
-              {demoMarkets.map((market) => (
-                <button key={market.symbol} className={`fc-market-row ${selected.symbol === market.symbol ? 'is-selected' : ''}`}
-                  onClick={() => setSelected(market)} type="button">
+              {displayMarkets.map((market) => (
+                <button
+                  key={`${market.exchange || 'DEMO'}.${market.symbol}`}
+                  className={`fc-market-row ${selected.symbol === market.symbol && selected.exchange === market.exchange ? 'is-selected' : ''}`}
+                  onClick={() => setSelected(market)}
+                  type="button"
+                  aria-label={`Select contract ${market.symbol} ${market.name}`}
+                >
                   <span className="fc-market-code">{market.symbol}</span>
-                  <span className="fc-market-name">{market.name}<small>{market.contract}</small></span>
-                  <span className="fc-market-price">{market.price}<small className={market.up ? 'positive' : 'negative'}>{market.change}</small></span>
-                  <MiniWave points={market.wave} down={!market.up} />
+                  <span className="fc-market-name">{market.name}<small>{market.isDirectory ? `${market.exchange} · ${market.contract}` : market.contract}</small></span>
+                  <span className="fc-market-price">
+                    {market.isDirectory ? (selected.symbol === market.symbol && Number.isFinite(selectedPrice) ? numberText(selectedPrice) : '—') : market.price}
+                    <small className={market.isDirectory ? 'muted-value' : market.up ? 'positive' : 'negative'}>
+                      {market.isDirectory ? (selected.symbol === market.symbol && selectedDate ? selectedDate : '未加载日线') : market.change}
+                    </small>
+                  </span>
+                  {market.wave?.length ? <MiniWave points={market.wave} down={!market.up} /> : <span className="fc-no-quote">NO QUOTE</span>}
                 </button>
               ))}
+            </div>
+            <div className="fc-panel-foot">
+              <span>{directoryAvailable ? `${directoryItems.length} 个合约目录匹配项` : '离线样例观察列表'}</span>
+              <span>{directoryAvailable ? 'REF DATA' : 'DEMO ONLY'}</span>
             </div>
           </section>
 
           <section className="fc-panel">
-            <div className="fc-panel-title"><span>02 / VOLUME PROFILE</span><b>DEMO</b></div>
+            <div className="fc-panel-title"><span>02 / VOLUME PROFILE</span><b>{analysis ? 'DAILY BARS' : 'DEMO'}</b></div>
             <div className="fc-volume-graph">
-              {Array.from({ length: 28 }, (_, i) => (
-                <span key={i} style={{ height: `${16 + ((i * 41 + 23) % 78)}%` }} className={i > 19 ? 'hot' : ''} />
-              ))}
+              {(analysis && bars.length
+                ? bars.slice(-28).map((bar) => bar.volume || 0)
+                : Array.from({ length: 28 }, (_, i) => 16 + ((i * 41 + 23) % 78))
+              ).map((volume, i, values) => {
+                const maxVolume = Math.max(...values, 1);
+                return <span key={i} style={{ height: `${Math.max(4, (volume / maxVolume) * 100)}%` }} className={i > values.length - 9 ? 'hot' : ''} />;
+              })}
             </div>
-            <div className="fc-panel-foot"><span>量能结构（示意）</span><span>NO LIVE FEED</span></div>
+            <div className="fc-panel-foot"><span>{analysis ? '所选日期区间的成交量' : '量能结构（示意）'}</span><span>{analysis ? dailyHistory.last_date : 'NO LIVE FEED'}</span></div>
           </section>
 
           <section className="fc-panel">
@@ -260,67 +461,108 @@ export default function FuturesCommandCenterPage() {
           <section className="fc-core-frame">
             <div className="fc-core-top"><span><span className="fc-live-dot" /> CORE VISUALIZER</span><span>CONTRACT / {selected.symbol}</span></div>
             <ParticleCore mode={mode} />
-            <div className="fc-float-card fc-float-card-a"><span className="fc-float-kicker"><ActivityIcon sx={{ fontSize: 12 }} /> SELECTED CONTRACT</span><strong>{selected.symbol} / {selected.name}</strong><small>{selected.contract} · sample only</small></div>
+            <div className="fc-float-card fc-float-card-a">
+              <span className="fc-float-kicker"><ActivityIcon sx={{ fontSize: 12 }} /> SELECTED CONTRACT</span>
+              <strong>{selected.symbol} / {selected.name}</strong>
+              <small>{selected.isDirectory ? `${selected.exchange} · multiplier ${selected.multiplier} · tick ${selected.tick_size}` : `${selected.contract} · sample only`}</small>
+              {selected.isDirectory && <small>最近日线：{selectedDate || '尚未加载'}</small>}
+            </div>
             <div className="fc-float-card fc-float-card-b"><span className="fc-float-kicker"><ShieldCheckIcon sx={{ fontSize: 12 }} /> RESEARCH STATUS</span><strong>NO ORDER ROUTING</strong><small>仅供研究，不连接交易账户</small></div>
-            <div className="fc-core-bottom"><span>VISUAL ENGINE / CANVAS PARTICLES</span><span>UI PREVIEW · V0.2</span></div>
+            <div className="fc-core-bottom"><span>VISUAL ENGINE / CANVAS PARTICLES</span><span>UI PREVIEW · V0.3</span></div>
           </section>
 
           <section className="fc-metric-strip">
-            <div className="fc-metric"><span>20-BAR MOMENTUM <i>DEMO</i></span><strong className="positive">+3.8%</strong><MiniWave points={[18, 22, 16, 29, 24, 36, 30, 40, 34, 48, 46, 55]} /></div>
-            <div className="fc-metric"><span>REALIZED VOL <i>DEMO</i></span><strong>21.4%</strong><MiniWave points={[42, 28, 35, 24, 47, 30, 43, 28, 38, 22, 32, 26]} down /></div>
-            <div className="fc-metric"><span>OPEN INTEREST <i>DEMO</i></span><strong>+1.2%</strong><MiniWave points={[21, 32, 26, 28, 38, 35, 43, 39, 50, 45, 52, 55]} /></div>
-            <div className="fc-metric"><span>DATA FRESHNESS <i>STATUS</i></span><strong className="muted-value">OFFLINE</strong><small>尚未载入行情</small></div>
+            <div className="fc-metric">
+              <span>20-BAR MOMENTUM <i>{analysis ? 'CALCULATED' : selected.isDirectory ? 'NO DATA' : 'DEMO'}</i></span>
+              <strong className={analysis ? (analysis.return_20_bar_pct >= 0 ? 'positive' : 'negative') : selected.isDirectory ? 'muted-value' : 'positive'}>
+                {analysis ? percentText(analysis.return_20_bar_pct) : selected.isDirectory ? '—' : '+3.8%'}
+              </strong>
+              {analysis && chartValues.length > 1
+                ? <svg className="mini-wave" viewBox="0 0 100 60" preserveAspectRatio="none"><polyline points={liveChartPoints} fill="none" vectorEffect="non-scaling-stroke" /></svg>
+                : <MiniWave points={selected.isDirectory ? [30, 30, 30, 30, 30, 30] : [18, 22, 16, 29, 24, 36, 30, 40, 34, 48, 46, 55]} />}
+            </div>
+            <div className="fc-metric">
+              <span>REALIZED VOL <i>{analysis ? 'CALCULATED' : selected.isDirectory ? 'NO DATA' : 'DEMO'}</i></span>
+              <strong>{analysis ? percentText(analysis.realized_volatility_20_annualized_pct) : selected.isDirectory ? '—' : '21.4%'}</strong>
+              <MiniWave points={selected.isDirectory && !analysis ? [30, 30, 30, 30, 30, 30] : [42, 28, 35, 24, 47, 30, 43, 28, 38, 22, 32, 26]} down />
+            </div>
+            <div className="fc-metric">
+              <span>OPEN INTEREST <i>{analysis ? 'CALCULATED' : selected.isDirectory ? 'NO DATA' : 'DEMO'}</i></span>
+              <strong>{analysis ? percentText(analysis.open_interest_change_5_bar_pct) : selected.isDirectory ? '—' : '+1.2%'}</strong>
+              <MiniWave points={selected.isDirectory && !analysis ? [30, 30, 30, 30, 30, 30] : [21, 32, 26, 28, 38, 35, 43, 39, 50, 45, 52, 55]} />
+            </div>
+            <div className="fc-metric">
+              <span>DATA FRESHNESS <i>STATUS</i></span>
+              <strong className="muted-value">{analysis ? 'DAILY' : selected.isDirectory ? 'WAITING' : 'OFFLINE'}</strong>
+              <small>{analysis ? `最后一根：${dailyHistory.last_date || '未知'}` : selected.isDirectory ? '点击加载日线研究' : '尚未载入行情'}</small>
+            </div>
           </section>
+          {historyError && <div className="fc-inline-status is-warning" role="status">{historyError}</div>}
+          {dailyHistory?.notes?.length > 0 && (
+            <div className="fc-inline-status">{dailyHistory.notes.join(' ')}</div>
+          )}
           <div className="fc-primary-action">
-            <div><b>查看真实研究结果</b><span>使用已连接的合约目录与日线分析接口</span></div>
-            <button type="button" onClick={openResearch}>打开研究面板 <ChevronRightIcon sx={{ fontSize: 16 }} /></button>
+            <div>
+              <b>{selected.isDirectory ? '加载真实日线研究' : '查看研究功能'}</b>
+              <span>{selected.isDirectory
+                ? '请求最近 180 天日线，计算收益、均线、波动率与持仓变化'
+                : '先通过目录搜索选择真实合约，或使用下方研究面板'}</span>
+            </div>
+            <button type="button" disabled={historyBusy} onClick={loadDailyHistory}>
+              {historyBusy ? '加载中…' : selected.isDirectory ? '加载日线研究' : '打开研究面板'}
+              {historyBusy ? null : <ChevronRightIcon sx={{ fontSize: 16 }} />}
+            </button>
           </div>
 
-      <section className="fc-bottom-grid">
-        <div className="fc-panel fc-code-panel">
-          <div className="fc-panel-title"><span><Code2Icon sx={{ fontSize: 14 }} /> STRATEGY LOGIC / EXAMPLE</span><b>READ ONLY</b></div>
-          <pre><code><span className="code-muted">01</span>  series = load_daily_bars(contract)  <span className="code-muted"># requires data</span>{'\n'}<span className="code-muted">02</span>  momentum = return_over(series, bars=20){'\n'}<span className="code-muted">03</span>  volatility = realized_vol(series, window=20){'\n'}<span className="code-muted">04</span>  quality = validate_coverage(series){'\n'}<span className="code-muted">05</span>  if quality.is_stale:{'\n'}<span className="code-muted">06</span>      flag("STALE DATA"){'\n'}<span className="code-muted">07</span>  else:{'\n'}<span className="code-muted">08</span>      report(momentum, volatility){'\n'}<span className="code-muted">09</span>  # no order submission in research mode</code></pre>
-        </div>
+          <section className="fc-bottom-grid">
+            <div className="fc-panel fc-code-panel">
+              <div className="fc-panel-title"><span><Code2Icon sx={{ fontSize: 14 }} /> STRATEGY LOGIC / EXAMPLE</span><b>READ ONLY</b></div>
+              <pre><code><span className="code-muted">01</span>  series = load_daily_bars(contract)  <span className="code-muted"># requires data</span>{'\n'}<span className="code-muted">02</span>  momentum = return_over(series, bars=20){'\n'}<span className="code-muted">03</span>  volatility = realized_vol(series, window=20){'\n'}<span className="code-muted">04</span>  quality = validate_coverage(series){'\n'}<span className="code-muted">05</span>  if quality.is_stale:{'\n'}<span className="code-muted">06</span>      flag("STALE DATA"){'\n'}<span className="code-muted">07</span>  else:{'\n'}<span className="code-muted">08</span>      report(momentum, volatility){'\n'}<span className="code-muted">09</span>  # no order submission in research mode</code></pre>
+            </div>
 
-        <div className="fc-panel fc-log-panel">
-          <div className="fc-panel-title"><span><CpuIcon sx={{ fontSize: 14 }} /> EVENT LOG / SAMPLE</span><div className="fc-log-filters">{['ALL', 'DATA', 'RISK'].map((tag) => <button key={tag} type="button" onClick={() => setActiveLog(tag)} className={activeLog === tag ? 'is-active' : ''}>{tag}</button>)}</div></div>
-          <div className="fc-log-list">
-            {demoLog.filter((row) => activeLog === 'ALL' || row[1] === activeLog).map((row) => (
-              <div className="fc-log-row" key={row[0]}><time>{row[0]}</time><b>{row[1]}</b><span>{row[2]}</span><i className={row[3]}>{row[3] === 'up' ? '●' : row[3] === 'warn' ? '!' : '·'}</i></div>
-            ))}
-          </div>
-        </div>
-      </section>
+            <div className="fc-panel fc-log-panel">
+              <div className="fc-panel-title"><span><CpuIcon sx={{ fontSize: 14 }} /> EVENT LOG / {dailyHistory ? 'RESEARCH' : 'SAMPLE'}</span><div className="fc-log-filters">{['ALL', 'DATA', 'RISK'].map((tag) => <button key={tag} type="button" onClick={() => setActiveLog(tag)} className={activeLog === tag ? 'is-active' : ''}>{tag}</button>)}</div></div>
+              <div className="fc-log-list">
+                {liveLogs.filter((row) => activeLog === 'ALL' || row[1] === activeLog).map((row, index) => (
+                  <div className="fc-log-row" key={`${row[0]}-${row[1]}-${index}`}><time>{row[0]}</time><b>{row[1]}</b><span>{row[2]}</span><i className={row[3]}>{row[3] === 'up' ? '●' : row[3] === 'warn' ? '!' : '·'}</i></div>
+                ))}
+              </div>
+            </div>
+          </section>
         </main>
 
         <aside className="fc-right-rail">
           <section className="fc-panel">
-            <div className="fc-panel-title"><span>04 / EVIDENCE MATRIX</span><b>DEMO</b></div>
+            <div className="fc-panel-title"><span>04 / EVIDENCE MATRIX</span><b>{analysis ? 'METRICS ONLY' : 'DEMO'}</b></div>
             <div className="fc-evidence-grid">
               {Array.from({ length: 64 }, (_, i) => <span key={i} className={`tone-${(i * 7 + Math.floor(i / 4)) % 5}`} />)}
             </div>
-            <div className="fc-panel-foot"><span>信号证据矩阵（装饰）</span><span>NOT COMPUTED</span></div>
+            <div className="fc-panel-foot"><span>信号证据矩阵（演示）</span><span>NOT COMPUTED</span></div>
           </section>
 
           <section className="fc-panel fc-related-panel">
-            <div className="fc-panel-title"><span>05 / RELATED CONTRACTS</span><b>SAMPLE</b></div>
+            <div className="fc-panel-title"><span>05 / RELATED CONTRACTS</span><b>{directoryAvailable ? 'DIRECTORY' : 'SAMPLE'}</b></div>
             <div className="fc-related-list">
-              {demoMarkets.filter((market) => market.symbol !== selected.symbol).map((market) => (
-                <button
-                  type="button"
-                  className="fc-related-row"
-                  key={market.symbol}
-                  aria-label={`Select related contract ${market.symbol}`}
-                  onClick={() => setSelected(market)}
-                >
-                  <span className="fc-related-code">{market.symbol}</span>
-                  <span className="fc-related-name">{market.name}</span>
-                  <span className={market.up ? 'positive' : 'negative'}>{market.change}</span>
-                  <ChevronRightIcon sx={{ fontSize: 14 }} />
-                </button>
-              ))}
+              {(directoryAvailable ? directoryItems.slice(0, 6).map(toDirectoryMarket) : demoMarkets)
+                .filter((market) => market.symbol !== selected.symbol || market.exchange !== selected.exchange)
+                .map((market) => (
+                  <button
+                    type="button"
+                    className="fc-related-row"
+                    key={`${market.exchange || 'DEMO'}.${market.symbol}`}
+                    aria-label={`Select related contract ${market.symbol}`}
+                    onClick={() => setSelected(market)}
+                  >
+                    <span className="fc-related-code">{market.symbol}</span>
+                    <span className="fc-related-name">{market.name}</span>
+                    <span className={market.isDirectory ? 'muted-value' : market.up ? 'positive' : 'negative'}>
+                      {market.isDirectory ? market.exchange : market.change}
+                    </span>
+                    <ChevronRightIcon sx={{ fontSize: 14 }} />
+                  </button>
+                ))}
             </div>
-            <div className="fc-panel-foot"><span>点击切换演示合约</span><span>NOT LIVE DATA</span></div>
+            <div className="fc-panel-foot"><span>{directoryAvailable ? '目录规格 · 未代表活跃挂牌状态' : '点击切换演示合约'}</span><span>{directoryAvailable ? 'REFERENCE' : 'NOT LIVE DATA'}</span></div>
           </section>
 
           <section className="fc-panel fc-backtest-panel">
@@ -376,13 +618,13 @@ export default function FuturesCommandCenterPage() {
         </aside>
       </div>
 
-      <footer className="fc-footer"><span><Layers3Icon sx={{ fontSize: 13 }} /> ORBITAL FUTURES DESK</span><span>日线研究 · 数据可追溯 · 不自动下单</span><span>BUILD 0.2 / UI CONCEPT</span></footer>
+      <footer className="fc-footer"><span><Layers3Icon sx={{ fontSize: 13 }} /> ORBITAL FUTURES DESK</span><span>日线研究 · 数据可追溯 · 不自动下单</span><span>BUILD 0.3 / API-READY</span></footer>
 
       <section id="futures-research-form" className="fc-real-research">
         <div className="fc-real-heading">
           <div className="fc-section-kicker">LIVE RESEARCH WORKFLOW</div>
-          <h2>真实期货研究面板</h2>
-          <p>下面的合约搜索与日线扫描沿用项目已有接口。此部分不是模拟面板；接口是否可用取决于当前部署的后端与数据源。</p>
+          <h2>合约扫描与研究</h2>
+          <p>下面保留完整的合约目录和多合约日线扫描。当前顶层面板可单独请求一个合约的真实日线；若后端不可用，会明确显示离线状态。</p>
         </div>
         <CommodityFuturesPage />
       </section>

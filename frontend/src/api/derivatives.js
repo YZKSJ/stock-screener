@@ -17,3 +17,11 @@ export const searchCommodityContracts = async ({ q = '', exchange, limit = 30 } 
   });
   return response.data;
 };
+
+
+export const fetchCommodityDailyHistory = async ({ contract, start_date, end_date }) => {
+  const response = await apiClient.post('/v1/derivatives/history/daily', {
+    contract, start_date, end_date,
+  }, { timeout: 60000 });
+  return response.data;
+};
