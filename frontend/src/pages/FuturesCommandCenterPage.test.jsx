@@ -60,7 +60,7 @@ describe('FuturesCommandCenterPage', () => {
     fireEvent.click(contract);
     expect(screen.getByText(/SHFE · multiplier 10 · tick 1/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /加载日线研究/ }));
-    await screen.findByText('akshare:futures_zh_daily_sina');
+    await screen.findByText(/akshare:futures_zh_daily_sina/);
     expect(apiMocks.history).toHaveBeenCalledTimes(1);
     expect(screen.getByText('+1.34%')).toBeInTheDocument();
     expect(screen.getByText('12.50%')).toBeInTheDocument();
