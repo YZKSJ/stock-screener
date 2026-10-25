@@ -190,12 +190,14 @@ function toDirectoryMarket(item) {
 
 function todayText(date = new Date()) {
   // Market data timestamps use China trading dates even if the viewer is abroad.
-  return new Intl.DateTimeFormat('en-CA', {
+  const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Shanghai',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(date);
+  }).formatToParts(date);
+  const fields = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${fields.year}-${fields.month}-${fields.day}`;
 }
 
 function dateDaysAgo(days) {
