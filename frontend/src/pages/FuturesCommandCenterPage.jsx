@@ -165,16 +165,6 @@ function ParticleCore({ mode }) {
   );
 }
 
-function SignalBars({ count = 10, className = '' }) {
-  return (
-    <div className={`signal-bars ${className}`} aria-hidden="true">
-      {Array.from({ length: count }, (_, i) => (
-        <span key={i} style={{ height: `${18 + ((i * 29 + 17) % 63)}%` }} />
-      ))}
-    </div>
-  );
-}
-
 function toDirectoryMarket(item) {
   return {
     ...item,
@@ -293,11 +283,9 @@ export default function FuturesCommandCenterPage() {
     ? Math.max(0, Math.floor((Date.parse(todayText()) - Date.parse(dailyHistory.last_date)) / 86400000))
     : null;
   const currentHistoryStale = currentBarGapDays !== null && currentBarGapDays > 7;
-  const selectedIsDirectory = Boolean(selected.isDirectory);
   const analysis = dailyHistory && dailyHistory.symbol === selected.symbol
     && dailyHistory.exchange === selected.exchange ? dailyHistory.analysis : null;
   const bars = analysis ? (dailyHistory.bars || []) : [];
-  const latestBar = bars.length ? bars[bars.length - 1] : null;
   const displayMarkets = directoryAvailable
     ? directoryItems.slice(0, 8).map(toDirectoryMarket)
     : demoMarkets;
@@ -580,13 +568,13 @@ export default function FuturesCommandCenterPage() {
             <div className="fc-panel-title"><span>03 / RESEARCH MODES</span><b>SELECT</b></div>
             <div className="fc-mode-list">
               {[
-                ['MOMENTUM', '趋势与动能', <ActivityIcon sx={{ fontSize: 15 }} />],
-                ['VOLATILITY', '波动与风险', <GaugeIcon sx={{ fontSize: 15 }} />],
-                ['VOLUME/OI', '成交量与持仓', <BarChart3Icon sx={{ fontSize: 15 }} />],
-              ].map(([value, label, icon]) => (
+                ['MOMENTUM', '趋势与动能', ActivityIcon],
+                ['VOLATILITY', '波动与风险', GaugeIcon],
+                ['VOLUME/OI', '成交量与持仓', BarChart3Icon],
+              ].map(([value, label, IconComponent]) => (
                 <button key={value} type="button" onClick={() => setMode(value)}
                   className={`fc-mode-button ${mode === value ? 'is-active' : ''}`}>
-                  {icon}<span>{label}</span><small>{value}</small>
+                  <IconComponent sx={{ fontSize: 15 }} /><span>{label}</span><small>{value}</small>
                 </button>
               ))}
             </div>
@@ -659,7 +647,7 @@ export default function FuturesCommandCenterPage() {
           <section className="fc-bottom-grid">
             <div className="fc-panel fc-code-panel">
               <div className="fc-panel-title"><span><Code2Icon sx={{ fontSize: 14 }} /> STRATEGY LOGIC / EXAMPLE</span><b>READ ONLY</b></div>
-              <pre><code><span className="code-muted">01</span>  series = load_daily_bars(contract)  <span className="code-muted"># requires data</span>{'\n'}<span className="code-muted">02</span>  momentum = return_over(series, bars=20){'\n'}<span className="code-muted">03</span>  volatility = realized_vol(series, window=20){'\n'}<span className="code-muted">04</span>  quality = validate_coverage(series){'\n'}<span className="code-muted">05</span>  if quality.is_stale:{'\n'}<span className="code-muted">06</span>      flag("STALE DATA"){'\n'}<span className="code-muted">07</span>  else:{'\n'}<span className="code-muted">08</span>      report(momentum, volatility){'\n'}<span className="code-muted">09</span>  # no order submission in research mode</code></pre>
+              <pre><code><span className="code-muted">01</span>  series = load_daily_bars(contract)  <span className="code-muted"># requires data</span>{'\n'}<span className="code-muted">02</span>  momentum = return_over(series, bars=20){'\n'}<span className="code-muted">03</span>  volatility = realized_vol(series, window=20){'\n'}<span className="code-muted">04</span>  quality = validate_coverage(series){'\n'}<span className="code-muted">05</span>  if quality.is_stale:{'\n'}<span className="code-muted">06</span>      flag(&quot;STALE DATA&quot;){'\n'}<span className="code-muted">07</span>  else:{'\n'}<span className="code-muted">08</span>      report(momentum, volatility){'\n'}<span className="code-muted">09</span>  # no order submission in research mode</code></pre>
             </div>
 
             <div className="fc-panel fc-log-panel">
