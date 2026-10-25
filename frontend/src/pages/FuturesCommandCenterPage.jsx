@@ -302,8 +302,56 @@ export default function FuturesCommandCenterPage() {
             <div className="fc-panel-foot"><span>信号证据矩阵（装饰）</span><span>NOT COMPUTED</span></div>
           </section>
 
+          <section className="fc-panel fc-related-panel">
+            <div className="fc-panel-title"><span>05 / RELATED CONTRACTS</span><b>SAMPLE</b></div>
+            <div className="fc-related-list">
+              {demoMarkets.filter((market) => market.symbol !== selected.symbol).map((market) => (
+                <button
+                  type="button"
+                  className="fc-related-row"
+                  key={market.symbol}
+                  aria-label={`Select related contract ${market.symbol}`}
+                  onClick={() => setSelected(market)}
+                >
+                  <span className="fc-related-code">{market.symbol}</span>
+                  <span className="fc-related-name">{market.name}</span>
+                  <span className={market.up ? 'positive' : 'negative'}>{market.change}</span>
+                  <ChevronRightIcon sx={{ fontSize: 14 }} />
+                </button>
+              ))}
+            </div>
+            <div className="fc-panel-foot"><span>点击切换演示合约</span><span>NOT LIVE DATA</span></div>
+          </section>
+
+          <section className="fc-panel fc-backtest-panel">
+            <div className="fc-panel-title"><span>06 / STRATEGY RESEARCH</span><b>NOT RUN</b></div>
+            <div className="fc-backtest-summary">
+              <span>策略回测 / 示例布局</span>
+              <strong>未运行</strong>
+              <small>此处将在接入历史数据后显示回测结果</small>
+            </div>
+            <svg className="fc-backtest-chart" viewBox="0 0 320 100" role="img" aria-label="装饰性曲线，非真实回测结果">
+              <defs>
+                <linearGradient id="fc-backtest-area" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor="#8b65ff" stopOpacity=".35" />
+                  <stop offset="100%" stopColor="#8b65ff" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d="M0 82 L20 77 L38 81 L55 65 L73 69 L95 57 L111 61 L130 44 L151 53 L173 36 L194 41 L216 27 L233 32 L256 18 L277 25 L297 12 L320 8 L320 100 L0 100 Z" fill="url(#fc-backtest-area)" />
+              <polyline points="0,82 20,77 38,81 55,65 73,69 95,57 111,61 130,44 151,53 173,36 194,41 216,27 233,32 256,18 277,25 297,12 320,8" fill="none" stroke="#9e7dff" strokeWidth="2.4" />
+              <polyline points="0,88 20,86 38,85 55,82 73,84 95,78 111,80 130,71 151,75 173,67 194,70 216,62 233,64 256,56 277,58 297,50 320,47" fill="none" stroke="#5ad9ff" strokeWidth="1.5" opacity=".82" />
+              {[20,55,90,125,160,195,230,265,300].map((x) => <line key={x} x1={x} y1="0" x2={x} y2="100" stroke="rgba(111,139,214,.10)" />)}
+            </svg>
+            <div className="fc-backtest-stats">
+              <div><small>总收益率</small><b>未计算</b></div>
+              <div><small>最大回撤</small><b>未计算</b></div>
+              <div><small>胜率</small><b>未计算</b></div>
+            </div>
+            <div className="fc-panel-foot"><span>装饰曲线 · 非结果</span><span>DEMO ONLY</span></div>
+          </section>
+
           <section className="fc-panel">
-            <div className="fc-panel-title"><span>05 / RISK GATE</span><b>RULES NEEDED</b></div>
+            <div className="fc-panel-title"><span>07 / RISK GATE</span><b>RULES NEEDED</b></div>
             <div className="fc-gauge">
               <div className="fc-gauge-ring"><div className="fc-gauge-needle" /></div>
               <strong>未评估</strong>
@@ -317,7 +365,7 @@ export default function FuturesCommandCenterPage() {
           </section>
 
           <section className="fc-panel fc-handoff-panel">
-            <div className="fc-panel-title"><span>06 / WORKFLOW</span><b>CONCEPT</b></div>
+            <div className="fc-panel-title"><span>08 / WORKFLOW</span><b>CONCEPT</b></div>
             {moduleStates.slice(0, 5).map((item) => (
               <div className="fc-handoff-row" key={item.name}>
                 <span>{item.name}</span><div><span style={{ width: `${item.width}%` }} /></div><small>{item.label}</small>
