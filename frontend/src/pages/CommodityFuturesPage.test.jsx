@@ -73,7 +73,7 @@ describe('CommodityFuturesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use MA701' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add contract' }));
     fireEvent.change(screen.getByLabelText('Contract code 2'), { target: { value: 'MA701' } });
-    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Exchange 2' }));
+    fireEvent.mouseDown(screen.getAllByRole('combobox')[2]);
     fireEvent.click(await screen.findByRole('option', { name: 'CZCE · Zhengzhou' }));
     fireEvent.change(screen.getByLabelText('Product 2'), { target: { value: 'MA' } });
     fireEvent.change(screen.getByLabelText('Multiplier 2'), { target: { value: '10' } });
