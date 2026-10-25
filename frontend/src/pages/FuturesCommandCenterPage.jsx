@@ -78,7 +78,7 @@ function ParticleCore({ mode }) {
       context.clearRect(0, 0, width, height);
       const cx = width * 0.5;
       const cy = height * 0.51;
-      const base = Math.min(width * 0.43, height * 0.34);
+      const base = Math.min(width * 0.52, height * 0.62);
       const glow = context.createRadialGradient(cx, cy, base * 0.12, cx, cy, base * 1.65);
       glow.addColorStop(0, 'rgba(6, 9, 24, 0.96)');
       glow.addColorStop(0.35, 'rgba(18, 24, 59, 0.6)');
@@ -87,20 +87,20 @@ function ParticleCore({ mode }) {
       context.fillStyle = glow;
       context.fillRect(0, 0, width, height);
 
-      for (let ring = 0; ring < 9; ring += 1) {
+      for (let ring = 0; ring < 11; ring += 1) {
         context.beginPath();
-        context.ellipse(cx, cy, base * (0.5 + ring * 0.105), base * (0.21 + ring * 0.046), -0.15, 0, Math.PI * 2);
+        context.ellipse(cx, cy, base * (0.5 + ring * 0.085), base * (0.21 + ring * 0.036), -0.15, 0, Math.PI * 2);
         context.strokeStyle = `rgba(${ring % 2 ? '116, 91, 255' : '70, 192, 255'}, ${0.1 + (ring % 3) * 0.025})`;
         context.lineWidth = ring === 0 ? 1.5 : 0.7;
         context.stroke();
       }
 
-      for (let i = 0; i < 210; i += 1) {
+      for (let i = 0; i < 360; i += 1) {
         const angle = i * 2.399963 + frame * (i % 2 ? 1 : -0.72);
         const spread = 0.28 + ((i * 37) % 100) / 100;
         const radial = base * spread * (0.82 + 0.18 * Math.sin(frame * 2 + i));
         const x = cx + Math.cos(angle) * radial;
-        const y = cy + Math.sin(angle) * radial * 0.48;
+        const y = cy + Math.sin(angle) * radial * 0.54;
         const alpha = 0.2 + (((i * 13) % 70) / 100);
         context.beginPath();
         context.arc(x, y, i % 13 === 0 ? 1.55 : 0.7 + ((i % 3) * 0.25), 0, Math.PI * 2);
@@ -115,7 +115,7 @@ function ParticleCore({ mode }) {
       hole.addColorStop(1, 'rgba(52, 39, 126, 0)');
       context.fillStyle = hole;
       context.beginPath();
-      context.ellipse(cx, cy, base * 0.64, base * 0.34, -0.15, 0, Math.PI * 2);
+      context.ellipse(cx, cy, base * 0.64, base * 0.40, -0.15, 0, Math.PI * 2);
       context.fill();
 
       const rim = context.createLinearGradient(cx - base, cy, cx + base, cy);
@@ -275,6 +275,22 @@ export default function FuturesCommandCenterPage() {
             <div><b>查看真实研究结果</b><span>使用已连接的合约目录与日线分析接口</span></div>
             <button type="button" onClick={openResearch}>打开研究面板 <ChevronRightIcon sx={{ fontSize: 16 }} /></button>
           </div>
+
+      <section className="fc-bottom-grid">
+        <div className="fc-panel fc-code-panel">
+          <div className="fc-panel-title"><span><Code2Icon sx={{ fontSize: 14 }} /> STRATEGY LOGIC / EXAMPLE</span><b>READ ONLY</b></div>
+          <pre><code><span className="code-muted">01</span>  series = load_daily_bars(contract)  <span className="code-muted"># requires data</span>{'\n'}<span className="code-muted">02</span>  momentum = return_over(series, bars=20){'\n'}<span className="code-muted">03</span>  volatility = realized_vol(series, window=20){'\n'}<span className="code-muted">04</span>  quality = validate_coverage(series){'\n'}<span className="code-muted">05</span>  if quality.is_stale:{'\n'}<span className="code-muted">06</span>      flag("STALE DATA"){'\n'}<span className="code-muted">07</span>  else:{'\n'}<span className="code-muted">08</span>      report(momentum, volatility){'\n'}<span className="code-muted">09</span>  # no order submission in research mode</code></pre>
+        </div>
+
+        <div className="fc-panel fc-log-panel">
+          <div className="fc-panel-title"><span><CpuIcon sx={{ fontSize: 14 }} /> EVENT LOG / SAMPLE</span><div className="fc-log-filters">{['ALL', 'DATA', 'RISK'].map((tag) => <button key={tag} type="button" onClick={() => setActiveLog(tag)} className={activeLog === tag ? 'is-active' : ''}>{tag}</button>)}</div></div>
+          <div className="fc-log-list">
+            {demoLog.filter((row) => activeLog === 'ALL' || row[1] === activeLog).map((row) => (
+              <div className="fc-log-row" key={row[0]}><time>{row[0]}</time><b>{row[1]}</b><span>{row[2]}</span><i className={row[3]}>{row[3] === 'up' ? '●' : row[3] === 'warn' ? '!' : '·'}</i></div>
+            ))}
+          </div>
+        </div>
+      </section>
         </main>
 
         <aside className="fc-right-rail">
@@ -311,22 +327,6 @@ export default function FuturesCommandCenterPage() {
           </section>
         </aside>
       </div>
-
-      <section className="fc-bottom-grid">
-        <div className="fc-panel fc-code-panel">
-          <div className="fc-panel-title"><span><Code2Icon sx={{ fontSize: 14 }} /> STRATEGY LOGIC / EXAMPLE</span><b>READ ONLY</b></div>
-          <pre><code><span className="code-muted">01</span>  series = load_daily_bars(contract)  <span className="code-muted"># requires data</span>{'\n'}<span className="code-muted">02</span>  momentum = return_over(series, bars=20){'\n'}<span className="code-muted">03</span>  volatility = realized_vol(series, window=20){'\n'}<span className="code-muted">04</span>  quality = validate_coverage(series){'\n'}<span className="code-muted">05</span>  if quality.is_stale:{'\n'}<span className="code-muted">06</span>      flag("STALE DATA"){'\n'}<span className="code-muted">07</span>  else:{'\n'}<span className="code-muted">08</span>      report(momentum, volatility){'\n'}<span className="code-muted">09</span>  # no order submission in research mode</code></pre>
-        </div>
-
-        <div className="fc-panel fc-log-panel">
-          <div className="fc-panel-title"><span><CpuIcon sx={{ fontSize: 14 }} /> EVENT LOG / SAMPLE</span><div className="fc-log-filters">{['ALL', 'DATA', 'RISK'].map((tag) => <button key={tag} type="button" onClick={() => setActiveLog(tag)} className={activeLog === tag ? 'is-active' : ''}>{tag}</button>)}</div></div>
-          <div className="fc-log-list">
-            {demoLog.filter((row) => activeLog === 'ALL' || row[1] === activeLog).map((row) => (
-              <div className="fc-log-row" key={row[0]}><time>{row[0]}</time><b>{row[1]}</b><span>{row[2]}</span><i className={row[3]}>{row[3] === 'up' ? '●' : row[3] === 'warn' ? '!' : '·'}</i></div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       <footer className="fc-footer"><span><Layers3Icon sx={{ fontSize: 13 }} /> ORBITAL FUTURES DESK</span><span>日线研究 · 数据可追溯 · 不自动下单</span><span>BUILD 0.2 / UI CONCEPT</span></footer>
 
