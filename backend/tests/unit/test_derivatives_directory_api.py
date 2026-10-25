@@ -27,7 +27,7 @@ class FakeDirectoryProvider:
 
 def test_directory_search_filters_by_product_and_reports_provenance(monkeypatch):
     monkeypatch.setattr(derivatives, "_directory_provider", FakeDirectoryProvider())
-    result = derivatives.futures_contract_directory(q="甲醇", limit=10)
+    result = derivatives.futures_contract_directory(q="甲醇", exchange=None, limit=10)
     assert result.provider == "test-directory"
     assert result.total_count == 1
     assert result.result_count == 1
@@ -39,7 +39,7 @@ def test_directory_search_filters_by_product_and_reports_provenance(monkeypatch)
 
 def test_directory_search_filters_exchange_and_limit(monkeypatch):
     monkeypatch.setattr(derivatives, "_directory_provider", FakeDirectoryProvider())
-    result = derivatives.futures_contract_directory(exchange="SHFE", limit=1)
+    result = derivatives.futures_contract_directory(q=None, exchange="SHFE", limit=1)
     assert result.total_count == 1
     assert [item.symbol for item in result.items] == ["RB2701"]
 
@@ -47,5 +47,5 @@ def test_directory_search_filters_exchange_and_limit(monkeypatch):
 def test_directory_rejects_financial_exchange_filter(monkeypatch):
     monkeypatch.setattr(derivatives, "_directory_provider", FakeDirectoryProvider())
     with pytest.raises(HTTPException) as exc:
-        derivatives.futures_contract_directory(exchange="CFFEX")
+        derivatives.futures_contract_directory(q=None, exchange="CFFEX", limit=50)
     assert exc.value.status_code == 422

@@ -8,7 +8,7 @@ export const loadGroupRankingsPage = () => import('./pages/GroupRankingsPage');
 export const loadValidationPage = () => import('./pages/ValidationPage');
 export const loadThemesPage = () => import('./pages/ThemesPage');
 export const loadChatbotPage = () => import('./pages/ChatbotPage');
-export const loadCommodityFuturesPage = () => import('./pages/CommodityFuturesPage');
+export const loadCommodityFuturesPage = () => import('./pages/FuturesCommandCenterPage');
 export const loadOperationsPage = () => import('./pages/OperationsPage');
 export const loadOptionsPage = () => import('./pages/OptionsPage');
 export const loadOptionsSymbolPage = () => import('./pages/OptionsSymbolPage');

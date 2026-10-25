@@ -13,6 +13,7 @@ import {
   useStaticManifest,
 } from './dataClient';
 
+const FuturesCommandCenterPage = lazy(() => import('../pages/FuturesCommandCenterPage'));
 const StaticOptionsPage = lazy(() => import('./pages/StaticOptionsPage'));
 const StaticOptionsSymbolPage = lazy(() => import('./pages/StaticOptionsSymbolPage'));
 
@@ -35,6 +36,7 @@ function StaticAppContent() {
             <Route path="/scan" element={<StaticScanPage />} />
             <Route path="/breadth" element={<StaticBreadthPage />} />
             <Route path="/groups" element={<StaticGroupsPage />} />
+            <Route path="/derivatives" element={<FuturesCommandCenterPage />} />
             <Route path="/options" element={<StaticOptionsPage />} />
             <Route path="/options/:symbol" element={<StaticOptionsSymbolPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

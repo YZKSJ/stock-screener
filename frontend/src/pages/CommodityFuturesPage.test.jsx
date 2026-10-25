@@ -60,7 +60,7 @@ describe('CommodityFuturesPage', () => {
       symbol: 'MA701', exchange: 'CZCE', product: 'MA',
       multiplier: 10, tick_size: 1, currency: 'CNY',
     }]);
-    expect(screen.getByText('8.20%')).toBeInTheDocument();
+    expect(screen.getAllByText('8.20%')).toHaveLength(2);
   });
 
   it('prevents duplicate contract/exchange pairs', async () => {
@@ -73,7 +73,8 @@ describe('CommodityFuturesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use MA701' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add contract' }));
     fireEvent.change(screen.getByLabelText('Contract code 2'), { target: { value: 'MA701' } });
-    fireEvent.change(screen.getByLabelText('Exchange 2'), { target: { value: 'CZCE' } });
+    fireEvent.mouseDown(screen.getAllByRole('combobox')[2]);
+    fireEvent.click(await screen.findByRole('option', { name: 'CZCE · Zhengzhou' }));
     fireEvent.change(screen.getByLabelText('Product 2'), { target: { value: 'MA' } });
     fireEvent.change(screen.getByLabelText('Multiplier 2'), { target: { value: '10' } });
     fireEvent.change(screen.getByLabelText('Tick size 2'), { target: { value: '1' } });

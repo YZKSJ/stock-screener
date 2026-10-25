@@ -4,6 +4,10 @@ on:
   push:
     branches: [main, develop]
     tags: ['v*']
+    # Daily published market data is built and source-checked by its own workflow;
+    # avoid running the full multi-database CI matrix for this single generated JSON.
+    paths-ignore:
+      - frontend/public/static-data/futures-research.json
   pull_request:
     branches: [main, develop]
 

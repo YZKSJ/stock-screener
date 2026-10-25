@@ -10,23 +10,30 @@ import { SITE_DESCRIPTION as STATIC_DESCRIPTION, SITE_NAME, SITE_TITLE as STATIC
 // app keeps its plain index.html. og:image must be absolute, so it needs VITE_SITE_URL.
 const staticSiteMetaPlugin = (siteUrl) => ({
   name: 'static-site-meta',
-  transformIndexHtml(html) {
+  transformIndexHtml(html, context) {
+    const isFuturesEntry = String(context?.path || '').split('?')[0].replace(/^\//, '') === 'futures.html';
+    const activeTitle = isFuturesEntry ? 'Orbital Futures Desk · 期货研究终端' : STATIC_TITLE;
+    const activeDescription = isFuturesEntry
+      ? '国内商品期货日线研究工作台。数据来源、日期与质量状态可追溯；只读研究，不自动下单。'
+      : STATIC_DESCRIPTION;
+    const activeSiteName = isFuturesEntry ? 'Orbital Futures Desk' : SITE_NAME;
+    const pageUrl = siteUrl ? `${siteUrl}${isFuturesEntry ? 'futures.html' : ''}` : null;
     const meta = [
-      ['name', 'description', STATIC_DESCRIPTION],
+      ['name', 'description', activeDescription],
       ['property', 'og:type', 'website'],
-      ['property', 'og:site_name', SITE_NAME],
-      ['property', 'og:title', STATIC_TITLE],
-      ['property', 'og:description', STATIC_DESCRIPTION],
+      ['property', 'og:site_name', activeSiteName],
+      ['property', 'og:title', activeTitle],
+      ['property', 'og:description', activeDescription],
       ['name', 'twitter:card', 'summary_large_image'],
-      ...(siteUrl ? [
-        ['property', 'og:url', siteUrl],
+      ...(pageUrl ? [
+        ['property', 'og:url', pageUrl],
         ['property', 'og:image', `${siteUrl}og-image.png`],
         ['property', 'og:image:width', '1200'],
         ['property', 'og:image:height', '630'],
       ] : []),
     ];
     return {
-      html: html.replace(/<title>.*<\/title>/, `<title>${STATIC_TITLE}</title>`),
+      html: html.replace(/<title>.*<\/title>/, `<title>${activeTitle}</title>`),
       tags: meta.map(([key, value, content]) => ({
         tag: 'meta', attrs: { [key]: value, content }, injectTo: 'head',
       })),
@@ -69,6 +76,10 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       rollupOptions: {
+        input: {
+          main: fileURLToPath(new URL('./index.html', import.meta.url)),
+          futures: fileURLToPath(new URL('./futures.html', import.meta.url)),
+        },
         output: {
           // MUI and recharts are left to Rollup: a named vendor chunk holds
           // every component any page imports and loads eagerly, while
