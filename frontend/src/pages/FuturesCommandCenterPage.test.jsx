@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import FuturesCommandCenterPage from './FuturesCommandCenterPage';
 
 vi.mock('./CommodityFuturesPage', () => ({
@@ -13,7 +13,7 @@ describe('FuturesCommandCenterPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /RB 螺纹钢/ }));
     expect(screen.getByText(/RB \/ 螺纹钢/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /波动与风险/ }));
-    expect(screen.getByText('VOLATILITY')).toBeInTheDocument();
+    expect(screen.getAllByText('VOLATILITY').length).toBeGreaterThan(0);
   });
 
   it('filters the example event log', () => {

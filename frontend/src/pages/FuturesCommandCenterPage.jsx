@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Activity, ArrowDownRight, ArrowUpRight, BarChart3, ChevronRight, CircleDot,
-  Code2, Cpu, Gauge, Layers3, Radar, RefreshCw, ShieldCheck, Waves,
-} from 'lucide-react';
+import ActivityIcon from '@mui/icons-material/Timeline';
+import BarChart3Icon from '@mui/icons-material/BarChart';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import CircleDotIcon from '@mui/icons-material/FiberManualRecord';
+import Code2Icon from '@mui/icons-material/Code';
+import CpuIcon from '@mui/icons-material/Memory';
+import GaugeIcon from '@mui/icons-material/Speed';
+import Layers3Icon from '@mui/icons-material/Layers';
+import RadarIcon from '@mui/icons-material/Radar';
+import ShieldCheckIcon from '@mui/icons-material/VerifiedUser';
+import WavesIcon from '@mui/icons-material/Waves';
 import CommodityFuturesPage from './CommodityFuturesPage';
 import './FuturesCommandCenterPage.css';
 
@@ -149,7 +156,7 @@ function ParticleCore({ mode }) {
         <small>没有连接实时行情</small>
       </div>
       <div className="core-label">
-        <Radar size={16} />
+        <RadarIcon sx={{ fontSize: 16 }} />
         <span>ORBITAL SIGNAL SPACE</span>
       </div>
     </div>
@@ -179,7 +186,7 @@ export default function FuturesCommandCenterPage() {
     <div className="futures-command">
       <header className="fc-topbar">
         <div className="fc-brand">
-          <div className="fc-brand-mark"><Waves size={20} /></div>
+          <div className="fc-brand-mark"><WavesIcon fontSize="small" /></div>
           <div>
             <div className="fc-brand-title">ORBITAL <span>FUTURES DESK</span></div>
             <div className="fc-brand-sub">DOMESTIC COMMODITY RESEARCH TERMINAL</div>
@@ -190,7 +197,7 @@ export default function FuturesCommandCenterPage() {
       </header>
 
       <div className="fc-disclaimer">
-        <CircleDot size={14} />
+        <CircleDotIcon sx={{ fontSize: 14 }} />
         <span><b>演示模式</b> · 当前行情数字、指标值、状态条和日志均为样例数据；中央粒子动画仅为视觉效果。正式研究结果请使用下方已接入后端的研究面板。</span>
       </div>
 
@@ -236,9 +243,9 @@ export default function FuturesCommandCenterPage() {
             <div className="fc-panel-title"><span>03 / RESEARCH MODES</span><b>SELECT</b></div>
             <div className="fc-mode-list">
               {[
-                ['MOMENTUM', '趋势与动能', <Activity size={15} />],
-                ['VOLATILITY', '波动与风险', <Gauge size={15} />],
-                ['VOLUME/OI', '成交量与持仓', <BarChart3 size={15} />],
+                ['MOMENTUM', '趋势与动能', <ActivityIcon sx={{ fontSize: 15 }} />],
+                ['VOLATILITY', '波动与风险', <GaugeIcon sx={{ fontSize: 15 }} />],
+                ['VOLUME/OI', '成交量与持仓', <BarChart3Icon sx={{ fontSize: 15 }} />],
               ].map(([value, label, icon]) => (
                 <button key={value} type="button" onClick={() => setMode(value)}
                   className={`fc-mode-button ${mode === value ? 'is-active' : ''}`}>
@@ -253,8 +260,8 @@ export default function FuturesCommandCenterPage() {
           <section className="fc-core-frame">
             <div className="fc-core-top"><span><span className="fc-live-dot" /> CORE VISUALIZER</span><span>CONTRACT / {selected.symbol}</span></div>
             <ParticleCore mode={mode} />
-            <div className="fc-float-card fc-float-card-a"><span className="fc-float-kicker"><Activity size={12} /> SELECTED CONTRACT</span><strong>{selected.symbol} / {selected.name}</strong><small>{selected.contract} · sample only</small></div>
-            <div className="fc-float-card fc-float-card-b"><span className="fc-float-kicker"><ShieldCheck size={12} /> RESEARCH STATUS</span><strong>NO ORDER ROUTING</strong><small>仅供研究，不连接交易账户</small></div>
+            <div className="fc-float-card fc-float-card-a"><span className="fc-float-kicker"><ActivityIcon sx={{ fontSize: 12 }} /> SELECTED CONTRACT</span><strong>{selected.symbol} / {selected.name}</strong><small>{selected.contract} · sample only</small></div>
+            <div className="fc-float-card fc-float-card-b"><span className="fc-float-kicker"><ShieldCheckIcon sx={{ fontSize: 12 }} /> RESEARCH STATUS</span><strong>NO ORDER ROUTING</strong><small>仅供研究，不连接交易账户</small></div>
             <div className="fc-core-bottom"><span>VISUAL ENGINE / CANVAS PARTICLES</span><span>UI PREVIEW · V0.2</span></div>
           </section>
 
@@ -266,7 +273,7 @@ export default function FuturesCommandCenterPage() {
           </section>
           <div className="fc-primary-action">
             <div><b>查看真实研究结果</b><span>使用已连接的合约目录与日线分析接口</span></div>
-            <button type="button" onClick={openResearch}>打开研究面板 <ChevronRight size={16} /></button>
+            <button type="button" onClick={openResearch}>打开研究面板 <ChevronRightIcon sx={{ fontSize: 16 }} /></button>
           </div>
         </main>
 
@@ -307,12 +314,12 @@ export default function FuturesCommandCenterPage() {
 
       <section className="fc-bottom-grid">
         <div className="fc-panel fc-code-panel">
-          <div className="fc-panel-title"><span><Code2 size={14} /> STRATEGY LOGIC / EXAMPLE</span><b>READ ONLY</b></div>
+          <div className="fc-panel-title"><span><Code2Icon sx={{ fontSize: 14 }} /> STRATEGY LOGIC / EXAMPLE</span><b>READ ONLY</b></div>
           <pre><code><span className="code-muted">01</span>  series = load_daily_bars(contract)  <span className="code-muted"># requires data</span>{'\n'}<span className="code-muted">02</span>  momentum = return_over(series, bars=20){'\n'}<span className="code-muted">03</span>  volatility = realized_vol(series, window=20){'\n'}<span className="code-muted">04</span>  quality = validate_coverage(series){'\n'}<span className="code-muted">05</span>  if quality.is_stale:{'\n'}<span className="code-muted">06</span>      flag("STALE DATA"){'\n'}<span className="code-muted">07</span>  else:{'\n'}<span className="code-muted">08</span>      report(momentum, volatility){'\n'}<span className="code-muted">09</span>  # no order submission in research mode</code></pre>
         </div>
 
         <div className="fc-panel fc-log-panel">
-          <div className="fc-panel-title"><span><Cpu size={14} /> EVENT LOG / SAMPLE</span><div className="fc-log-filters">{['ALL', 'DATA', 'RISK'].map((tag) => <button key={tag} type="button" onClick={() => setActiveLog(tag)} className={activeLog === tag ? 'is-active' : ''}>{tag}</button>)}</div></div>
+          <div className="fc-panel-title"><span><CpuIcon sx={{ fontSize: 14 }} /> EVENT LOG / SAMPLE</span><div className="fc-log-filters">{['ALL', 'DATA', 'RISK'].map((tag) => <button key={tag} type="button" onClick={() => setActiveLog(tag)} className={activeLog === tag ? 'is-active' : ''}>{tag}</button>)}</div></div>
           <div className="fc-log-list">
             {demoLog.filter((row) => activeLog === 'ALL' || row[1] === activeLog).map((row) => (
               <div className="fc-log-row" key={row[0]}><time>{row[0]}</time><b>{row[1]}</b><span>{row[2]}</span><i className={row[3]}>{row[3] === 'up' ? '●' : row[3] === 'warn' ? '!' : '·'}</i></div>
@@ -321,7 +328,7 @@ export default function FuturesCommandCenterPage() {
         </div>
       </section>
 
-      <footer className="fc-footer"><span><Layers3 size={13} /> ORBITAL FUTURES DESK</span><span>日线研究 · 数据可追溯 · 不自动下单</span><span>BUILD 0.2 / UI CONCEPT</span></footer>
+      <footer className="fc-footer"><span><Layers3Icon sx={{ fontSize: 13 }} /> ORBITAL FUTURES DESK</span><span>日线研究 · 数据可追溯 · 不自动下单</span><span>BUILD 0.2 / UI CONCEPT</span></footer>
 
       <section id="futures-research-form" className="fc-real-research">
         <div className="fc-real-heading">
