@@ -46,7 +46,7 @@ def test_select_research_contracts_picks_nearest_future_contract_per_product():
 
     assert [(entry.product, entry.symbol) for entry in selected] == [
         ("RB", "RB2611"),
-        ("MA", "MA701"),
+        ("MA", "MA612"),
         ("CU", "CU2612"),
     ]
 
