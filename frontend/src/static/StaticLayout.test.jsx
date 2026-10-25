@@ -51,6 +51,11 @@ describe('StaticLayout market selector', () => {
     expect(option).toHaveAttribute('aria-disabled', 'true');
   });
 
+  it('offers the Futures research route in the static navigation', () => {
+    renderLayout();
+    expect(screen.getByRole('link', { name: 'Futures' })).toBeInTheDocument();
+  });
+
   it('keeps an unavailable market from the URL selected and says so (#504)', () => {
     renderLayout('/?market=IN');
 

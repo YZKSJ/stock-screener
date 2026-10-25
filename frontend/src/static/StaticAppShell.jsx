@@ -6,7 +6,7 @@ import StaticHomePage from './pages/StaticHomePage';
 import StaticScanPage from './pages/StaticScanPage';
 import StaticBreadthPage from './pages/StaticBreadthPage';
 import StaticGroupsPage from './pages/StaticGroupsPage';
-import FuturesCommandCenterPage from '../pages/FuturesCommandCenterPage';
+const FuturesCommandCenterPage = lazy(() => import('../pages/FuturesCommandCenterPage'));
 import { StaticMarketProvider } from './StaticMarketContext';
 import {
   getStaticSupportedMarkets,

@@ -424,8 +424,8 @@ export default function FuturesCommandCenterPage() {
         </div>
         <div className="fc-top-center"><span className="fc-pulse" /> RESEARCH CORE <b>{directoryAvailable ? 'DIRECTORY CONNECTED' : 'PREVIEW BUILD'}</b></div>
         <div className="fc-top-right">
-          <span className="fc-mode-chip">{directoryAvailable ? 'DAILY DATA MODE' : 'DEMO MODE'}</span>
-          <span>DATA SOURCE: {directoryAvailable ? 'DIRECTORY READY' : 'OFFLINE / SAMPLE'}</span>
+          <span className="fc-mode-chip">{analysis ? 'DAILY HISTORY LOADED' : directoryAvailable ? 'REFERENCE MODE' : 'DEMO MODE'}</span>
+          <span>DATA SOURCE: {analysis ? 'DAILY BARS' : directoryAvailable ? 'REFERENCE DIRECTORY' : 'OFFLINE / SAMPLE'}</span>
         </div>
       </header>
 
