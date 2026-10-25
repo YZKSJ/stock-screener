@@ -138,6 +138,7 @@ class FuturesDailyHistoryResponse(_StrictModel):
     requested_end_date: date
     first_date: date | None = None
     last_date: date | None = None
+    end_date_lag_days: int | None = Field(default=None, ge=0)
     row_count: int = Field(ge=0)
     rows_skipped: int = Field(ge=0)
     duplicate_dates_skipped: int = Field(ge=0)
@@ -154,6 +155,7 @@ class FuturesDailyScanItemResponse(_StrictModel):
     series_kind: Literal["single_contract", "continuous_proxy"] | None = None
     first_date: date | None = None
     last_date: date | None = None
+    end_date_lag_days: int | None = Field(default=None, ge=0)
     row_count: int = Field(default=0, ge=0)
     rows_skipped: int = Field(default=0, ge=0)
     duplicate_dates_skipped: int = Field(default=0, ge=0)

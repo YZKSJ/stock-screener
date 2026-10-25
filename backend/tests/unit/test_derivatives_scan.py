@@ -30,6 +30,7 @@ def test_scan_ranks_20_bar_return_descending_and_leaves_unranked_last():
 def test_history_quality_warnings_explain_continuous_and_filtered_data():
     warnings = _history_quality_warnings(
         series_kind="continuous_proxy", row_count=12, rows_skipped=2, duplicate_dates_skipped=1,
+        last_date=date(2026, 10, 1), requested_end_date=date(2026, 10, 24),
     )
     assert any("Continuous/rolled" in warning for warning in warnings)
     assert any("2 malformed" in warning for warning in warnings)
@@ -43,3 +44,33 @@ def test_history_quality_warning_for_empty_series():
     )
     assert len(warnings) == 1
     assert "No daily bars" in warnings[0]
+
+
+def test_history_quality_warning_flags_large_end_date_gap():
+    warnings = _history_quality_warnings(
+        series_kind="single_contract",
+        row_count=30,
+        rows_skipped=0,
+        duplicate_dates_skipped=0,
+        last_date=date(2026, 10, 10),
+        requested_end_date=date(2026, 10, 24),
+    )
+    assert any("14 calendar day(s)" in warning for warning in warnings)
+    assert any("not exchange-calendar-adjusted" in warning for warning in warnings)
+
+
+def test_history_quality_warning_does_not_flag_small_end_date_gap():
+    warnings = _history_quality_warnings(
+        series_kind="single_contract",
+        row_count=30,
+        rows_skipped=0,
+        duplicate_dates_skipped=0,
+        last_date=date(2026, 10, 18),
+        requested_end_date=date(2026, 10, 24),
+    )
+    assert not any("calendar day(s) before" in warning for warning in warnings)
+
+
+def test_end_date_lag_is_none_for_empty_history():
+    from app.api.v1.derivatives import _end_date_lag_days
+    assert _end_date_lag_days(None, date(2026, 10, 24)) is None

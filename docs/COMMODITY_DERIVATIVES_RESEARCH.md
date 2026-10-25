@@ -15,7 +15,7 @@ All endpoints are behind the existing server-session dependency.
 
 The history endpoint calls `akshare.futures_zh_daily_sina(symbol=...)`, then filters the returned daily series to the requested inclusive date range. See the [AKShare futures documentation](https://github.com/akfamily/akshare/blob/main/docs/data/futures/futures.md) and [upstream adapter source](https://github.com/akfamily/akshare/blob/main/akshare/futures/futures_zh_sina.py).
 
-The response includes provider identity, fetch time, requested dates, first/last bar dates, series kind, returned bars and quality counters. Invalid OHLC rows and conflicting duplicate dates are excluded and counted. It also computes 1/5/20-bar returns, 5/20-bar moving averages, 20-return annualized realized volatility, recent-five vs previous-twenty volume ratio, five-bar open-interest change, and latest intraday range. Annualization assumes 252 periods per year.
+The response includes provider identity, fetch time, requested dates, first/last bar dates, series kind, returned bars and quality counters. Single-history and scan results report the calendar-day gap between the requested end date and the latest returned bar; gaps greater than seven days trigger a warning. This is a coarse coverage alarm, not an exchange trading-day calculation. Invalid OHLC rows and conflicting duplicate dates are excluded and counted. It also computes 1/5/20-bar returns, 5/20-bar moving averages, 20-return annualized realized volatility, recent-five vs previous-twenty volume ratio, five-bar open-interest change, and latest intraday range. Annualization assumes 252 periods per year.
 
 ## Contract directory
 
@@ -62,15 +62,15 @@ Submit to `POST /api/v1/derivatives/scan/daily`. Returns and realized volatility
 From `backend/` run:
 
 ```bash
-pytest tests/unit/test_derivatives_quality.py tests/unit/test_derivatives_api_registration.py tests/unit/test_akshare_futures_history.py tests/unit/test_derivatives_analytics.py
+pytest tests/unit/test_derivatives_quality.py tests/unit/test_derivatives_api_registration.py tests/unit/test_akshare_futures_history.py tests/unit/test_akshare_futures_directory.py tests/unit/test_derivatives_analytics.py tests/unit/test_derivatives_scan.py tests/unit/test_derivatives_directory_api.py
 ```
 
 The new history and analytics tests use synthetic bars/fake provider calls, not live network data.
 
 ## Next steps
 
-1. Add exchange trading-day/night-session semantics.
-2. Add contract directory and market-universe APIs.
+1. Validate provider directory and history coverage against selected symbols.
+2. Add exchange/product-specific trading-day/night-session semantics from verifiable references.
 3. Persist normalized history with source/schema metadata.
-4. Build a chart/report UI and MCP tools over the same calculation layer.
+4. Improve chart/report UI and MCP tools over the same calculation layer.
 5. Implement licensed CTP/live-data separately from this public history adapter.

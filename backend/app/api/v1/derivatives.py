@@ -1,6 +1,8 @@
 """Read-only API endpoints for domestic futures and derivatives research."""
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, HTTPException, Query
 
 from app.domain.derivatives.analytics import calculate_daily_indicators
@@ -53,13 +55,30 @@ def _indicator_response(bars: tuple[FuturesDailyBar, ...]) -> FuturesDailyIndica
     )
 
 
+def _end_date_lag_days(
+    last_date: date | None, requested_end_date: date
+) -> int | None:
+    """Calendar-day gap between the requested range end and the last available bar."""
+    if last_date is None:
+        return None
+    return max(0, (requested_end_date - last_date).days)
+
+
 def _history_quality_warnings(
-    *, series_kind: str, row_count: int, rows_skipped: int, duplicate_dates_skipped: int,
+    *,
+    series_kind: str,
+    row_count: int,
+    rows_skipped: int,
+    duplicate_dates_skipped: int,
+    last_date: date | None = None,
+    requested_end_date: date | None = None,
 ) -> list[str]:
     """Return human-readable, non-blocking warnings for a history series."""
     warnings: list[str] = []
     if series_kind == "continuous_proxy":
-        warnings.append("Continuous/rolled series may contain roll discontinuities; do not treat as a deliverable contract.")
+        warnings.append(
+            "Continuous/rolled series may contain roll discontinuities; do not treat as a deliverable contract."
+        )
     if rows_skipped:
         warnings.append(f"{rows_skipped} malformed OHLC row(s) were excluded.")
     if duplicate_dates_skipped:
@@ -68,6 +87,13 @@ def _history_quality_warnings(
         warnings.append("No daily bars were returned for this symbol and date range; verify symbol and source coverage.")
     elif row_count < 21:
         warnings.append(f"Only {row_count} daily bar(s) returned; at least 21 are needed for a 20-bar return.")
+    if last_date is not None and requested_end_date is not None:
+        lag_days = _end_date_lag_days(last_date, requested_end_date)
+        if lag_days is not None and lag_days > 7:
+            warnings.append(
+                f"Latest returned bar is {lag_days} calendar day(s) before the requested end date; "
+                "check source coverage and holiday gaps. This is not exchange-calendar-adjusted."
+            )
     return warnings
 
 
@@ -194,6 +220,7 @@ def daily_history(request: FuturesDailyHistoryRequest) -> FuturesDailyHistoryRes
         "AKShare/Sina is a best-effort third-party source; verify coverage and freshness before use.",
         "Results are filtered to requested dates; missing trading sessions are not inferred.",
         "Invalid OHLC rows and conflicting duplicate dates are omitted and counted.",
+        "End-date lag is measured in calendar days, not exchange trading days.",
     ]
     if result.series_kind == "continuous_proxy":
         notes.append(
@@ -203,12 +230,19 @@ def daily_history(request: FuturesDailyHistoryRequest) -> FuturesDailyHistoryRes
         notes.append("Malformed source rows were skipped; inspect quality counters.")
     if result.duplicate_dates_skipped:
         notes.append("Duplicate/conflicting dates were excluded rather than arbitrarily selected.")
+    end_lag_days = _end_date_lag_days(result.last_date, request.end_date)
+    if end_lag_days is not None and end_lag_days > 7:
+        notes.append(
+            f"Last returned bar is {end_lag_days} calendar days before the requested end date; "
+            "this is not adjusted using an exchange trading calendar."
+        )
 
     return FuturesDailyHistoryResponse(
         symbol=result.symbol, exchange=result.exchange, provider=result.provider,
         fetched_at=result.fetched_at, series_kind=result.series_kind,
         requested_start_date=request.start_date, requested_end_date=request.end_date,
         first_date=result.first_date, last_date=result.last_date,
+        end_date_lag_days=end_lag_days,
         row_count=len(result.bars), rows_skipped=result.rows_skipped,
         duplicate_dates_skipped=result.duplicate_dates_skipped,
         bars=[
@@ -253,12 +287,15 @@ def scan_daily(request: FuturesDailyScanRequest) -> FuturesDailyScanResponse:
             symbol=result.symbol, exchange=result.exchange, provider=result.provider,
             status=status, series_kind=result.series_kind,
             first_date=result.first_date, last_date=result.last_date,
+            end_date_lag_days=_end_date_lag_days(result.last_date, request.end_date),
             row_count=len(result.bars), rows_skipped=result.rows_skipped,
             duplicate_dates_skipped=result.duplicate_dates_skipped,
             quality_warnings=_history_quality_warnings(
                 series_kind=result.series_kind, row_count=len(result.bars),
                 rows_skipped=result.rows_skipped,
                 duplicate_dates_skipped=result.duplicate_dates_skipped,
+                last_date=result.last_date,
+                requested_end_date=request.end_date,
             ),
             analysis=analysis,
             reason_code=(
