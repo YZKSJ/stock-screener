@@ -11,6 +11,8 @@ import RadarIcon from '@mui/icons-material/Radar';
 import ShieldCheckIcon from '@mui/icons-material/VerifiedUser';
 import WavesIcon from '@mui/icons-material/Waves';
 import CommodityFuturesPage from './CommodityFuturesPage';
+import { fetchCommodityDailyHistory, searchCommodityContracts } from '../api/derivatives';
+import { STATIC_SITE_MODE, getStaticDataUrl } from '../config/runtimeMode';
 import './FuturesCommandCenterPage.css';
 
 const demoMarkets = [
@@ -222,6 +224,8 @@ export default function FuturesCommandCenterPage() {
   const [mode, setMode] = useState('MOMENTUM');
   const [activeLog, setActiveLog] = useState('ALL');
   const [directoryItems, setDirectoryItems] = useState([]);
+  const [allDirectoryItems, setAllDirectoryItems] = useState([]);
+  const [staticSnapshot, setStaticSnapshot] = useState(null);
   const [directoryQuery, setDirectoryQuery] = useState('');
   const [directoryBusy, setDirectoryBusy] = useState(false);
   const [directoryStatus, setDirectoryStatus] = useState('loading');
@@ -230,7 +234,7 @@ export default function FuturesCommandCenterPage() {
   const [historyBusy, setHistoryBusy] = useState(false);
   const [historyError, setHistoryError] = useState('');
 
-  const directoryAvailable = directoryStatus === 'connected' && directoryItems.length > 0;
+  const directoryAvailable = directoryStatus === 'connected' && allDirectoryItems.length > 0;
   const selectedIsDirectory = Boolean(selected.isDirectory);
   const analysis = dailyHistory && dailyHistory.symbol === selected.symbol
     && dailyHistory.exchange === selected.exchange ? dailyHistory.analysis : null;
@@ -243,10 +247,47 @@ export default function FuturesCommandCenterPage() {
   useEffect(() => {
     let alive = true;
     setDirectoryStatus('loading');
+
+    if (STATIC_SITE_MODE) {
+      fetch(getStaticDataUrl('futures-research.json'), {
+        headers: { Accept: 'application/json' },
+        cache: 'no-cache',
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error('static_futures_snapshot_http_' + response.status);
+          return response.json();
+        })
+        .then((snapshot) => {
+          if (!alive) return;
+          setStaticSnapshot(snapshot);
+          const items = Array.isArray(snapshot?.directory?.items) ? snapshot.directory.items : [];
+          setAllDirectoryItems(items);
+          setDirectoryItems(items.slice(0, 30));
+          setDirectoryStatus(items.length ? 'connected' : 'offline');
+          const availableHistory = (snapshot?.histories || []).find((history) => (
+            history.status === 'ok' && Array.isArray(history.bars) && history.bars.length
+          ));
+          const initial = availableHistory
+            ? items.find((item) => item.symbol === availableHistory.symbol
+              && item.exchange === availableHistory.exchange)
+            : items[0];
+          if (initial) setSelected(toDirectoryMarket(initial));
+          if (!items.length) setDirectoryError('静态期货快照尚无可用合约目录；等待下一次成功的数据构建。');
+        })
+        .catch(() => {
+          if (alive) {
+            setDirectoryStatus('offline');
+            setDirectoryError('静态快照尚未发布或暂时不可用。请等待数据工作流成功运行。');
+          }
+        });
+      return () => { alive = false; };
+    }
+
     searchCommodityContracts({ q: '', limit: 30 })
       .then((result) => {
         if (!alive) return;
         const items = Array.isArray(result?.items) ? result.items : [];
+        setAllDirectoryItems(items);
         setDirectoryItems(items);
         setDirectoryStatus(items.length ? 'connected' : 'empty');
         if (items.length) {
@@ -271,10 +312,24 @@ export default function FuturesCommandCenterPage() {
     setDirectoryBusy(true);
     setDirectoryError('');
     try {
-      const result = await searchCommodityContracts({ q: directoryQuery, limit: 30 });
-      const items = Array.isArray(result?.items) ? result.items : [];
-      setDirectoryItems(items);
-      setDirectoryStatus(items.length ? 'connected' : 'empty');
+      let items;
+      if (STATIC_SITE_MODE) {
+        const query = directoryQuery.trim().toUpperCase();
+        items = allDirectoryItems.filter((item) => (
+          !query
+          || String(item.symbol || '').toUpperCase().includes(query)
+          || String(item.product || '').toUpperCase().includes(query)
+          || String(item.contract_name || '').toUpperCase().includes(query)
+          || String(item.product_name || '').toUpperCase().includes(query)
+        )).slice(0, 30);
+        setDirectoryItems(items);
+      } else {
+        const result = await searchCommodityContracts({ q: directoryQuery, limit: 30 });
+        items = Array.isArray(result?.items) ? result.items : [];
+        setAllDirectoryItems(items);
+        setDirectoryItems(items);
+      }
+      setDirectoryStatus(items.length || allDirectoryItems.length ? 'connected' : 'empty');
       if (!items.length) {
         setDirectoryError('没有找到匹配合约。可以尝试品种代码、合约代码或中文品种名。');
       } else if (!selected.isDirectory || !items.some((item) => (
@@ -301,18 +356,30 @@ export default function FuturesCommandCenterPage() {
     setHistoryError('');
     setDailyHistory(null);
     try {
-      const response = await fetchCommodityDailyHistory({
-        contract: {
-          symbol: selected.symbol,
-          exchange: selected.exchange,
-          product: selected.product,
-          multiplier: Number(selected.multiplier),
-          tick_size: Number(selected.tick_size),
-          currency: 'CNY',
-        },
-        start_date: dateDaysAgo(180),
-        end_date: todayText(),
-      });
+      let response;
+      if (STATIC_SITE_MODE) {
+        response = (staticSnapshot?.histories || []).find((history) => (
+          history.symbol === selected.symbol && history.exchange === selected.exchange
+        ));
+        if (!response || response.status !== 'ok' || !Array.isArray(response.bars) || !response.bars.length) {
+          throw new Error(response?.error
+            ? '该合约的静态日线快照不可用：' + response.error
+            : '静态快照只预先保存少量代表合约的日线；此合约暂无已发布历史。');
+        }
+      } else {
+        response = await fetchCommodityDailyHistory({
+          contract: {
+            symbol: selected.symbol,
+            exchange: selected.exchange,
+            product: selected.product,
+            multiplier: Number(selected.multiplier),
+            tick_size: Number(selected.tick_size),
+            currency: 'CNY',
+          },
+          start_date: dateDaysAgo(180),
+          end_date: todayText(),
+        });
+      }
       setDailyHistory(response);
       if (!response?.bars?.length) {
         setHistoryError('数据源没有返回该合约的日线。合约目录可能包含暂不可查询或已过期的代码。');
@@ -498,8 +565,8 @@ export default function FuturesCommandCenterPage() {
             </div>
           </section>
           {historyError && <div className="fc-inline-status is-warning" role="status">{historyError}</div>}
-          {dailyHistory?.notes?.length > 0 && (
-            <div className="fc-inline-status">{dailyHistory.notes.join(' ')}</div>
+          {((dailyHistory?.notes?.length || 0) + (dailyHistory?.quality_warnings?.length || 0)) > 0 && (
+            <div className="fc-inline-status">{[...(dailyHistory.notes || []), ...(dailyHistory.quality_warnings || [])].join(' ')}</div>
           )}
           <div className="fc-primary-action">
             <div>
@@ -626,7 +693,9 @@ export default function FuturesCommandCenterPage() {
           <h2>合约扫描与研究</h2>
           <p>下面保留完整的合约目录和多合约日线扫描。当前顶层面板可单独请求一个合约的真实日线；若后端不可用，会明确显示离线状态。</p>
         </div>
-        <CommodityFuturesPage />
+        {STATIC_SITE_MODE
+          ? <div className="fc-inline-status">此站点使用定时发布的只读日线快照，不调用后端 API。若所选合约没有预先生成的历史，需等待下一次成功的数据导出。</div>
+          : <CommodityFuturesPage />}
       </section>
     </div>
   );
