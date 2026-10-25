@@ -22,6 +22,14 @@ on:
       - backend/app/services/static_site_export_service.py
       - backend/app/services/static_global_artifacts.py
       - backend/app/services/static_market_artifact_contract.py
+      - backend/app/scripts/export_futures_research_snapshot.py
+      - backend/tests/unit/test_futures_static_snapshot.py
+      - frontend/src/pages/FuturesCommandCenterPage.jsx
+      - frontend/src/pages/FuturesCommandCenterPage.css
+      - frontend/src/static/StaticAppShell.jsx
+      - frontend/src/static/StaticLayout.jsx
+      - frontend/src/config/runtimeMode.js
+      - frontend/src/api/derivatives.js
 
 concurrency:
   # One production publish at a time; a newer pending run replaces an older
@@ -145,6 +153,16 @@ jobs:
             --artifacts-dir /tmp/static-market-artifacts \
             --price-manifest-dir /tmp/daily-price-manifests \
             --selected-markets '[]'
+
+      # Build a compact, read-only daily futures snapshot for the static Pages route.
+      # The exporter catches upstream failures and writes an explicit offline status.
+      - name: Export futures research snapshot
+        continue-on-error: true
+        run: |
+          mkdir -p frontend/public/static-data
+          cd backend
+          python -m app.scripts.export_futures_research_snapshot \
+            --output ../frontend/public/static-data/futures-research.json
 
       - name: Build static frontend
         env:
